@@ -5,11 +5,14 @@ import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:face_detection_app/FaceEmbedding.dart';
 import 'package:face_detection_app/models/FaceData.dart';
+import 'package:face_detection_app/utils/colors.dart';
 import 'package:face_detection_app/utils/utils.dart';
+import 'package:face_detection_app/widgets/customizable_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as Image;
@@ -35,6 +38,7 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
   int fake = 0;
   int real = 0;
   int iteration = 0;
+  bool isStartedStreaming = false;
 
   static final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
@@ -67,40 +71,6 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     await _initializeControllerFuture;
 
     // Start image stream
-    _controller.startImageStream((CameraImage image) async {
-      if (FaceEmbedding1.instance.interpreter.isAllocated) {
-        if (!isProcessing) {
-          setState(() {
-            isProcessing = true;
-          });
-          // final convertedImage = _convertCameraImage(image);
-          // ref.read(imageMemoryProvider.notifier).state = convertedImage.getBytes();
-          // final receivePort = ReceivePort();
-          // await Isolate.spawn(
-          //   _processImage,
-          //   IsolatesDataInput(
-          //       sendPort: receivePort.sendPort,
-          //       cameraImage: image,
-          //       ref: ref,
-          //       context: context,
-          //       cameraDescription: widget.cameras[1]),
-          // );
-          await _processImage(image, widget.cameras[1]);
-
-          // final embedding = await _faceEmbedding.getFaceEmbedding(convertedImage);
-          // print('Face Embedding: $embedding');
-          // setState(() {
-          //   isProcessing = false;
-          // });
-
-          // final inputData = await _preprocessORCImage(convertOCRCameraImageToImage(image));
-          // await _runOCRInference(inputData);
-          // _postProcessORCOutput(outputs);
-        }
-      } else {
-        print("Not Allocated");
-      }
-    });
   }
 
   @override
@@ -143,7 +113,51 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
                       ],
                     ),
                   ),
-                )
+                ),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: CustomizableTextButton(
+                            prefixButtonIcon: null,
+                            suffixButtonIcon: null,
+                            isFullWidth: true,
+                            isOutlined: false,
+                            buttonTitle: isStartedStreaming ? "Stop" : "Start",
+                            onPressed: () async {
+                              if (!isStartedStreaming) {
+                                setState(() {
+                                  isStartedStreaming = !isStartedStreaming;
+                                  isProcessing = false;
+                                });
+                                await _controller.startImageStream(startImageProcess);
+                              } else {
+                                setState(() {
+                                  isStartedStreaming = !isStartedStreaming;
+                                });
+                                await _controller.stopImageStream();
+                              }
+                            },
+                            buttonTitleStyle: TextStyle(
+                              fontSize: 16.sp,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            buttonBorderRadius: 10,
+                            buttonColor: primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             );
           } else {
@@ -152,6 +166,19 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
         },
       ),
     );
+  }
+
+  Future<void> startImageProcess(CameraImage image) async {
+    if (FaceEmbedding1.instance.interpreter.isAllocated) {
+      if (!isProcessing) {
+        setState(() {
+          isProcessing = true;
+        });
+        await _processImage(image, widget.cameras[1]);
+      }
+    } else {
+      print("Not Allocated");
+    }
   }
 
   static InputImage? _inputImageFromCameraImage(
@@ -299,19 +326,18 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
               ref.refresh(realCountProvider);
               // _faceEmbedding.disposeModels();
               final recognizedFace = await _recognizeFace(faceEmbedding, ref);
-              await Future.delayed(Duration(seconds: 1));
+              // await Future.delayed(Duration(seconds: 1));
               if (recognizedFace != null) {
                 print('Recognized face: ${recognizedFace.name}');
                 Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
-                Navigator.pop(context);
               } else {
                 await ref
                     .read(databaseProvider)
                     .faceEmbeddingsDao
                     .insertFace(widget.name, faceEmbedding);
                 Fluttertoast.showToast(msg: "Registered Face");
-                Navigator.pop(context);
               }
+              Navigator.pop(context);
             }
           }
         } else {
@@ -331,13 +357,16 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
   static Future<FaceData?> _recognizeFace(List<double> faceData, WidgetRef ref) async {
     double threshold = 0.7;
     final allFaces = await ref.read(databaseProvider).faceEmbeddingsDao.getAllFaces();
-    for (final storedFace in allFaces) {
-      double similarity = cosineSimilarity(faceData, Utils.parseEmbedding(storedFace.embedding!));
-      if (similarity > threshold) {
-        return storedFace;
+    if (allFaces.length != 0) {
+      for (final storedFace in allFaces) {
+        double similarity = cosineSimilarity(faceData, Utils.parseEmbedding(storedFace.embedding!));
+        if (similarity > threshold) {
+          return storedFace;
+        }
       }
+    } else {
+      return null;
     }
-    return null;
   }
 
   static double cosineSimilarity(List<double> embedding1, List<double> embedding2) {
@@ -378,7 +407,7 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
         /*sendPort: receivePort.sendPort,*/ face: face, cameraImage: image, camera: camera));
     print("cropFace1 End: " + DateTime.now().toString());
     // final croppedImage = cropFace1(face, image, camera);
-    ref.read(imageMemoryProvider.notifier).state = Image.encodePng(croppedImage) as Uint8List;
+    // ref.read(imageMemoryProvider.notifier).state = Image.encodePng(croppedImage) as Uint8List;
     // Step 2: Preprocess the cropped image
 
     /*final resizedImg1 = crop(
@@ -444,17 +473,17 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     List<double> inputModel1 = await compute(softmax, (outputModel1 as List<double>));
 
     print("Model1 Output: $inputModel1");
-    // imageMat1.dispose();
+    imageMat1.dispose();
     print("Model1 Output End: " + DateTime.now().toString());
 
     print("Model1 Output Start: " + DateTime.now().toString());
     List<dynamic> outputModel2 =
         await FaceEmbedding1.instance.getDataFromModel2(/*bitmapImage1,*/ imageMat2);
-    // imageMat2.dispose();
+    imageMat2.dispose();
     print("Model1 Output End: " + DateTime.now().toString());
     print("outputModel2: $outputModel2");
     print(outputModel2.runtimeType);
-    // mat.dispose();
+    mat.dispose();
 
     List<double> inputModel2 = await compute(softmax, (outputModel2 as List<double>));
     // final inputModel2 =
@@ -480,7 +509,7 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     print("IsReal: $isReal");
     print("Score: $score");
     print("Is Fake: $isFake");
-    List<double> input = await compute(FaceEmbedding1.instance.getFaceEmbedding, croppedImage);
+    List<double> input = await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
     print("Face Embedding: $input");
     Map<String, dynamic> returnData = {
       "Embedding": input,

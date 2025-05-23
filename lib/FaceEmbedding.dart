@@ -200,6 +200,9 @@ class FaceEmbedding1 {
   late Interpreter interpreter;
   late Interpreter interpreter1;
   late Interpreter interpreter2;
+  late IsolateInterpreter isolateInterpreter;
+  late IsolateInterpreter isolateInterpreter1;
+  late IsolateInterpreter isolateInterpreter2;
   bool _isInitialized = false;
   final _lock = Lock();
 
@@ -210,6 +213,9 @@ class FaceEmbedding1 {
         interpreter = await Interpreter.fromAsset('assets/models/face_net_512.tflite');
         interpreter1 = await Interpreter.fromAsset('assets/models/first_model.tflite');
         interpreter2 = await Interpreter.fromAsset('assets/models/second_model.tflite');
+        isolateInterpreter = await IsolateInterpreter.create(address: interpreter.address);
+        isolateInterpreter1 = await IsolateInterpreter.create(address: interpreter1.address);
+        isolateInterpreter2 = await IsolateInterpreter.create(address: interpreter2.address);
         _isInitialized = true;
       } catch (e) {
         print('Failed to load model: $e');
@@ -241,7 +247,7 @@ class FaceEmbedding1 {
     var outputTensor = List<double>.filled(512, 0).reshape([1, 512]);
 
     // Run inference
-    interpreter.run(inputTensor, outputTensor);
+    await isolateInterpreter.run(inputTensor, outputTensor);
 
     // Return the face embedding
     return outputTensor[0];
@@ -304,8 +310,8 @@ class FaceEmbedding1 {
 
     // Prepare input tensor
 
-    outputTensor = await compute(
-        computeModel1, Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
+    outputTensor =
+        await computeModel1(Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
 
     // Return the face embedding
     return await outputTensor[0];
@@ -317,7 +323,7 @@ class FaceEmbedding1 {
     checkOutputShape(interpreter1);
 
     // Run inference
-    interpreter1.run(inputTensor, data.outputTensor);
+    await isolateInterpreter1.run(inputTensor, data.outputTensor);
     return data.outputTensor;
   }
 
@@ -336,8 +342,8 @@ class FaceEmbedding1 {
     // Prepare output tensor with the correct shape [1, 512]
     var outputTensor = List<double>.filled(3, 0).reshape([1, 3]);
 
-    outputTensor = await compute(
-        computeModel2, Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
+    outputTensor =
+        await computeModel2(Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
 
     // Return the face embedding
     return await outputTensor[0];
@@ -349,7 +355,7 @@ class FaceEmbedding1 {
     checkOutputShape(interpreter2);
 
     // Run inference
-    interpreter2.run(inputTensor, data.outputTensor);
+    await isolateInterpreter2.run(inputTensor, data.outputTensor);
     return data.outputTensor;
   }
 
