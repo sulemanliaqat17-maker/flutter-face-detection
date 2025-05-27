@@ -1,6 +1,5 @@
 import 'package:camera/camera.dart';
-import 'package:face_detection_app/FaceDetection7.dart';
-import 'package:face_detection_app/FaceEmbedding.dart';
+import 'package:face_detection_app/FaceDetectionLiveScreen.dart';
 import 'package:face_detection_app/widgets/customizable_textfield.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +29,7 @@ class MyApp extends StatelessWidget {
       },
       child: MaterialApp(
         title: 'Flutter Demo',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
           // This is the theme of your application.
           //
@@ -113,7 +113,7 @@ class _HomeViewState extends State<HomeView> {
               onPressed: () async {
                 if (_formKey.currentState!.validate()) {
                   final cameras = await availableCameras();
-                  await FaceEmbedding1.instance.loadModel();
+                  /*await FaceEmbedding1.instance.loadModel();
                   await Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -121,7 +121,13 @@ class _HomeViewState extends State<HomeView> {
                                 cameras: cameras,
                                 name: nameController.text,
                               )));
-                  await FaceEmbedding1.instance.dispose();
+                  await FaceEmbedding1.instance.dispose();*/
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => FaceAngleDetectionScreen(
+                                cameras: cameras,
+                              )));
                 }
               },
               child: Text("FaceDetect"),

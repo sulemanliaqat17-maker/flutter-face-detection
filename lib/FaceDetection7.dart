@@ -75,7 +75,8 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
 
   @override
   void dispose() {
-    // _controller.stopImageStream();
+    _controller.stopImageStream();
+    _controller.dispose();
     // _faceDetector.close();
     super.dispose();
   }
@@ -304,41 +305,47 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
       try {
         if (inputImage != null) {
           final faces = await _faceDetector.processImage(inputImage);
-          for (Face face in faces) {
-            fake = ref.read(fakeCountProvider);
-            real = ref.read(realCountProvider);
-            Map<String, dynamic> data =
-                await _extractFaceData(face, inputImage, image, ref, camera);
-            List<double> faceEmbedding = data["Embedding"];
-            bool isFake = data["Fake"];
+          if (faces.isNotEmpty) {
+            for (Face face in faces) {
+              fake = ref.read(fakeCountProvider);
+              real = ref.read(realCountProvider);
+              Map<String, dynamic> data =
+                  await _extractFaceData(face, inputImage, image, ref, camera);
+              List<double> faceEmbedding = data["Embedding"];
+              bool isFake = data["Fake"];
 
-            ref.read(fakeCountProvider.notifier).state = isFake ? (fake + 1) : fake;
-            ref.read(realCountProvider.notifier).state = isFake ? real : (real + 1);
+              ref.read(fakeCountProvider.notifier).state = isFake ? (fake + 1) : fake;
+              ref.read(realCountProvider.notifier).state = isFake ? real : (real + 1);
+              setState(() {
+                isProcessing = false;
+                iteration = iteration + 1;
+              });
+              if (iteration == 6) {
+                // final embedding = await _faceEmbedding.getFaceEmbedding(image);
+                // Uint8List faceData =
+                //     Uint8List.fromList(faceEmbedding.map((e) => (e * 255).toInt()).toList());
+                ref.refresh(fakeCountProvider);
+                ref.refresh(realCountProvider);
+                // _faceEmbedding.disposeModels();
+                final recognizedFace = await _recognizeFace(faceEmbedding, ref);
+                // await Future.delayed(Duration(seconds: 1));
+                if (recognizedFace != null) {
+                  print('Recognized face: ${recognizedFace.name}');
+                  Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
+                } else {
+                  await ref
+                      .read(databaseProvider)
+                      .faceEmbeddingsDao
+                      .insertFace(widget.name, faceEmbedding);
+                  Fluttertoast.showToast(msg: "Registered Face");
+                }
+                Navigator.pop(context);
+              }
+            }
+          } else {
             setState(() {
               isProcessing = false;
-              iteration = iteration + 1;
             });
-            if (iteration == 6) {
-              // final embedding = await _faceEmbedding.getFaceEmbedding(image);
-              // Uint8List faceData =
-              //     Uint8List.fromList(faceEmbedding.map((e) => (e * 255).toInt()).toList());
-              ref.refresh(fakeCountProvider);
-              ref.refresh(realCountProvider);
-              // _faceEmbedding.disposeModels();
-              final recognizedFace = await _recognizeFace(faceEmbedding, ref);
-              // await Future.delayed(Duration(seconds: 1));
-              if (recognizedFace != null) {
-                print('Recognized face: ${recognizedFace.name}');
-                Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
-              } else {
-                await ref
-                    .read(databaseProvider)
-                    .faceEmbeddingsDao
-                    .insertFace(widget.name, faceEmbedding);
-                Fluttertoast.showToast(msg: "Registered Face");
-              }
-              Navigator.pop(context);
-            }
           }
         } else {
           print("null inputimage");
@@ -439,10 +446,10 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     // print("File Start: " + DateTime.now().toString());
     Directory tempDir = await getApplicationCacheDirectory();
     File tempFile = File('${tempDir.path}/temp.png');
-    tempFile.writeAsBytesSync(Image.encodePng(croppedImage));
+    await tempFile.writeAsBytes(Image.encodePng(croppedImage));
     print("File End: " + DateTime.now().toString());
     print("cropM Start: " + DateTime.now().toString());
-    cv.Mat mat = cv.imread(tempFile.path);
+    cv.Mat mat = await cv.imreadAsync(tempFile.path);
     cv.Mat imageMat1 = await cropM(CropMDataInput(
         orgImg: mat,
         bbox: [
@@ -473,17 +480,17 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     List<double> inputModel1 = await compute(softmax, (outputModel1 as List<double>));
 
     print("Model1 Output: $inputModel1");
-    imageMat1.dispose();
+    imageMat1.release();
     print("Model1 Output End: " + DateTime.now().toString());
 
     print("Model1 Output Start: " + DateTime.now().toString());
     List<dynamic> outputModel2 =
         await FaceEmbedding1.instance.getDataFromModel2(/*bitmapImage1,*/ imageMat2);
-    imageMat2.dispose();
+    imageMat2.release();
     print("Model1 Output End: " + DateTime.now().toString());
     print("outputModel2: $outputModel2");
     print(outputModel2.runtimeType);
-    mat.dispose();
+    mat.release();
 
     List<double> inputModel2 = await compute(softmax, (outputModel2 as List<double>));
     // final inputModel2 =
@@ -540,7 +547,7 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
 
     // Resize to target dimensions
     cv.Mat dstImg = cv.Mat.empty();
-    cv.resize(
+    await cv.resizeAsync(
       croppedImg,
       (data.outW, data.outH),
       dst: dstImg,
@@ -548,7 +555,7 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
 
     // Manual cleanup (recommended for memory management)
     // croppedImg.release(); // Uncomment if needed
-    croppedImg.dispose();
+    croppedImg.release();
 
     return dstImg;
   }

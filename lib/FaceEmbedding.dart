@@ -253,12 +253,12 @@ class FaceEmbedding1 {
     return outputTensor[0];
   }
 
-  Float32List preprocessImage(cv.Mat image, int targetWidth, int targetHeight) {
+  Future<Float32List> preprocessImage(cv.Mat image, int targetWidth, int targetHeight) async{
     const IMAGE_CHANNELS = 3; // RGB channels
 
     // Resize the image to target dimensions
     final resizedImage = cv.Mat.empty();
-    cv.resize(
+    await cv.resizeAsync(
       image,
       (targetWidth, targetHeight),
       dst: resizedImage,
@@ -267,7 +267,7 @@ class FaceEmbedding1 {
 
     // Convert BGR to RGB
     final rgbImage = cv.Mat.empty();
-    cv.cvtColor(resizedImage, dst: rgbImage, cv.COLOR_BGR2RGB);
+    await cv.cvtColorAsync(resizedImage, dst: rgbImage, cv.COLOR_BGR2RGB);
 
     // Prepare float array for normalized pixel data
     final floatArray = Float32List(targetWidth * targetHeight * IMAGE_CHANNELS);
@@ -301,7 +301,8 @@ class FaceEmbedding1 {
     // for (int i = 0; i < image.length; i++) {
     //   inputBuffer[i] = image[i] / 1.0; // Normalize to [0, 1]
     // }
-    final inputBuffer = preprocessImage(matImage, 80, 80);
+    final inputBuffer = await preprocessImage(matImage, 80, 80);
+    matImage.release();
 
     // Prepare output tensor with the correct shape [1, 512]
     var outputTensor = List<double>.filled(3, 0).reshape([1, 3]);
@@ -335,8 +336,8 @@ class FaceEmbedding1 {
       inputBuffer[i] = image[i] / 255.0; // Normalize to [0, 1]
     }*/
 
-    final inputBuffer = preprocessImage(matImage, 80, 80);
-
+    final inputBuffer = await preprocessImage(matImage, 80, 80);
+    matImage.release();
     // Reshape to match the model's input shape [1, 80, 80, 3]
 
     // Prepare output tensor with the correct shape [1, 512]
@@ -364,11 +365,11 @@ class FaceEmbedding1 {
     final outputTensors = interpreter.getOutputTensors();
 
     // Print output tensor details
-    for (var tensor in outputTensors) {
-      print('Output Tensor Name: ${tensor.name}');
-      print('Output Tensor Shape: ${tensor.shape}');
-      print('Output Tensor Type: ${tensor.type}');
-    }
+    // for (var tensor in outputTensors) {
+    //   print('Output Tensor Name: ${tensor.name}');
+    //   print('Output Tensor Shape: ${tensor.shape}');
+    //   print('Output Tensor Type: ${tensor.type}');
+    // }
   }
 
   void disposeModels() {
