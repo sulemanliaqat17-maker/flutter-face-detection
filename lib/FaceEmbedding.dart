@@ -228,6 +228,9 @@ class FaceEmbedding1 {
   /// Dispose resources
   Future<void> dispose() async {
     await _lock.synchronized(() {
+      isolateInterpreter?.close();
+      isolateInterpreter1?.close();
+      isolateInterpreter2?.close();
       interpreter?.close();
       interpreter1?.close();
       interpreter2?.close();
@@ -253,7 +256,7 @@ class FaceEmbedding1 {
     return outputTensor[0];
   }
 
-  Future<Float32List> preprocessImage(cv.Mat image, int targetWidth, int targetHeight) async{
+  Future<Float32List> preprocessImage(cv.Mat image, int targetWidth, int targetHeight) async {
     const IMAGE_CHANNELS = 3; // RGB channels
 
     // Resize the image to target dimensions

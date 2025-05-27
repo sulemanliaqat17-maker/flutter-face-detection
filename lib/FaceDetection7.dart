@@ -306,41 +306,42 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
         if (inputImage != null) {
           final faces = await _faceDetector.processImage(inputImage);
           if (faces.isNotEmpty) {
-            for (Face face in faces) {
-              fake = ref.read(fakeCountProvider);
-              real = ref.read(realCountProvider);
-              Map<String, dynamic> data =
-                  await _extractFaceData(face, inputImage, image, ref, camera);
-              List<double> faceEmbedding = data["Embedding"];
-              bool isFake = data["Fake"];
+            Face face = faces.first;
+            fake = ref.read(fakeCountProvider);
+            real = ref.read(realCountProvider);
+            Map<String, dynamic> data =
+                await _extractFaceData(face, inputImage, image, ref, camera);
+            bool isFake = data["Fake"];
+            Image.Image croppedImage = data["CroppedImage"] as Image.Image;
 
-              ref.read(fakeCountProvider.notifier).state = isFake ? (fake + 1) : fake;
-              ref.read(realCountProvider.notifier).state = isFake ? real : (real + 1);
+            ref.read(fakeCountProvider.notifier).state = isFake ? (fake + 1) : fake;
+            ref.read(realCountProvider.notifier).state = isFake ? real : (real + 1);
+
+            if (iteration == 5) {
+              List<double> faceEmbedding =
+                  await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
+              print("Face Embedding: $faceEmbedding");
+              ref.refresh(fakeCountProvider);
+              ref.refresh(realCountProvider);
+              // _faceEmbedding.disposeModels();
+              final recognizedFace = await _recognizeFace(faceEmbedding, ref);
+              // await Future.delayed(Duration(seconds: 1));
+              if (recognizedFace != null) {
+                print('Recognized face: ${recognizedFace.name}');
+                Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
+              } else {
+                await ref
+                    .read(databaseProvider)
+                    .faceEmbeddingsDao
+                    .insertFace(widget.name, faceEmbedding);
+                Fluttertoast.showToast(msg: "Registered Face");
+              }
+              Navigator.pop(context);
+            } else {
               setState(() {
                 isProcessing = false;
                 iteration = iteration + 1;
               });
-              if (iteration == 6) {
-                // final embedding = await _faceEmbedding.getFaceEmbedding(image);
-                // Uint8List faceData =
-                //     Uint8List.fromList(faceEmbedding.map((e) => (e * 255).toInt()).toList());
-                ref.refresh(fakeCountProvider);
-                ref.refresh(realCountProvider);
-                // _faceEmbedding.disposeModels();
-                final recognizedFace = await _recognizeFace(faceEmbedding, ref);
-                // await Future.delayed(Duration(seconds: 1));
-                if (recognizedFace != null) {
-                  print('Recognized face: ${recognizedFace.name}');
-                  Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
-                } else {
-                  await ref
-                      .read(databaseProvider)
-                      .faceEmbeddingsDao
-                      .insertFace(widget.name, faceEmbedding);
-                  Fluttertoast.showToast(msg: "Registered Face");
-                }
-                Navigator.pop(context);
-              }
             }
           } else {
             setState(() {
@@ -408,47 +409,13 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
   Future<Map<String, dynamic>> _extractFaceData(Face face, InputImage inputImage, CameraImage image,
       WidgetRef ref, CameraDescription camera) async {
     // Step 1: Crop the face from the input image
-    // final croppedImage = _cropFace(face, inputImage);
-    print("cropFace1 Start: " + DateTime.now().toString());
-    Image.Image croppedImage = await cropFace1(Crop1DataInput(
-        /*sendPort: receivePort.sendPort,*/ face: face, cameraImage: image, camera: camera));
-    print("cropFace1 End: " + DateTime.now().toString());
-    // final croppedImage = cropFace1(face, image, camera);
-    // ref.read(imageMemoryProvider.notifier).state = Image.encodePng(croppedImage) as Uint8List;
-    // Step 2: Preprocess the cropped image
+    Image.Image croppedImage =
+        await cropFace1(Crop1DataInput(face: face, cameraImage: image, camera: camera));
 
-    /*final resizedImg1 = crop(
-        croppedImage,
-        [
-          face.boundingBox.left.toInt(),
-          face.boundingBox.top.toInt(),
-          face.boundingBox.width.toInt(),
-          face.boundingBox.height.toInt()
-        ],
-        2.7,
-        80,
-        80);
-    final resizedImg2 = crop(
-        croppedImage,
-        [
-          face.boundingBox.left.toInt(),
-          face.boundingBox.top.toInt(),
-          face.boundingBox.width.toInt(),
-          face.boundingBox.height.toInt()
-        ],
-        4.0,
-        80,
-        80);*/
-
-    // Convert the resized image to Uint8List (bitmap-like format)
-    // final bitmapImage1 = Uint8List.fromList(Image.encodePng(resizedImg1));
-    // final bitmapImage2 = Uint8List.fromList(Image.encodePng(resizedImg2));
-    // print("File Start: " + DateTime.now().toString());
     Directory tempDir = await getApplicationCacheDirectory();
     File tempFile = File('${tempDir.path}/temp.png');
     await tempFile.writeAsBytes(Image.encodePng(croppedImage));
-    print("File End: " + DateTime.now().toString());
-    print("cropM Start: " + DateTime.now().toString());
+
     cv.Mat mat = await cv.imreadAsync(tempFile.path);
     cv.Mat imageMat1 = await cropM(CropMDataInput(
         orgImg: mat,
@@ -472,29 +439,21 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
         scale: 4.0,
         outW: 80,
         outH: 80));
-    print("cropM End: " + DateTime.now().toString());
+    mat.release();
+    mat.dispose();
 
-    print("Model1 Output Start: " + DateTime.now().toString());
     List<dynamic> outputModel1 =
         await FaceEmbedding1.instance.getDataFromModel1(/*bitmapImage1,*/ imageMat1);
-    List<double> inputModel1 = await compute(softmax, (outputModel1 as List<double>));
-
-    print("Model1 Output: $inputModel1");
     imageMat1.release();
-    print("Model1 Output End: " + DateTime.now().toString());
+    imageMat1.dispose();
+    List<double> inputModel1 = await compute(softmax, (outputModel1 as List<double>));
+    print("Model1 Output: $inputModel1");
 
-    print("Model1 Output Start: " + DateTime.now().toString());
     List<dynamic> outputModel2 =
         await FaceEmbedding1.instance.getDataFromModel2(/*bitmapImage1,*/ imageMat2);
     imageMat2.release();
-    print("Model1 Output End: " + DateTime.now().toString());
-    print("outputModel2: $outputModel2");
-    print(outputModel2.runtimeType);
-    mat.release();
-
+    imageMat2.dispose();
     List<double> inputModel2 = await compute(softmax, (outputModel2 as List<double>));
-    // final inputModel2 =
-    //     softmax(await _faceEmbedding.getDataFromModel2( /*bitmapImage2,*/  imageMat2));
     print("Model2 Output: $inputModel2");
 
     final prediction = List<double>.filled(3, 0.0);
@@ -516,10 +475,8 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     print("IsReal: $isReal");
     print("Score: $score");
     print("Is Fake: $isFake");
-    List<double> input = await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
-    print("Face Embedding: $input");
     Map<String, dynamic> returnData = {
-      "Embedding": input,
+      "CroppedImage": croppedImage,
       "Fake": isFake,
     };
     return returnData;

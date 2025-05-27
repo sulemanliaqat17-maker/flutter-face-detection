@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
-import 'package:face_detection_app/FaceDetectionLiveScreen.dart';
+import 'package:face_detection_app/FaceDetection8.dart';
+import 'package:face_detection_app/FaceEnbeddingMat.dart';
 import 'package:face_detection_app/widgets/customizable_textfield.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -113,21 +114,23 @@ class _HomeViewState extends State<HomeView> {
               onPressed: () async {
                 if (_formKey.currentState!.validate()) {
                   final cameras = await availableCameras();
-                  /*await FaceEmbedding1.instance.loadModel();
+                  // await FaceEmbedding1.instance.loadModel();
+                  await FaceEmbeddingMat.instance.loadModel();
                   await Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => CameraScreen7(
+                          builder: (context) => CameraScreen8(
                                 cameras: cameras,
                                 name: nameController.text,
                               )));
-                  await FaceEmbedding1.instance.dispose();*/
-                  Navigator.push(
+                  // await FaceEmbedding1.instance.dispose();
+                  await FaceEmbeddingMat.instance.dispose();
+                  /*Navigator.push(
                       context,
                       MaterialPageRoute(
                           builder: (context) => FaceAngleDetectionScreen(
                                 cameras: cameras,
-                              )));
+                              )));*/
                 }
               },
               child: Text("FaceDetect"),
