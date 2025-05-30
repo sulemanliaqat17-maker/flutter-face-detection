@@ -318,23 +318,32 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
             ref.read(realCountProvider.notifier).state = isFake ? real : (real + 1);
 
             if (iteration == 5) {
-              List<double> faceEmbedding =
-                  await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
-              print("Face Embedding: $faceEmbedding");
-              ref.refresh(fakeCountProvider);
-              ref.refresh(realCountProvider);
-              // _faceEmbedding.disposeModels();
-              final recognizedFace = await _recognizeFace(faceEmbedding, ref);
-              // await Future.delayed(Duration(seconds: 1));
-              if (recognizedFace != null) {
-                print('Recognized face: ${recognizedFace.name}');
-                Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
+              if (ref.read(fakeCountProvider.notifier).state > 2) {
+                ref.refresh(fakeCountProvider);
+                ref.refresh(realCountProvider);
+                Fluttertoast.showToast(
+                    msg:
+                        "Kindly ensure that the facial registration of this person is bright and clear.");
               } else {
-                await ref
-                    .read(databaseProvider)
-                    .faceEmbeddingsDao
-                    .insertFace(widget.name, faceEmbedding);
-                Fluttertoast.showToast(msg: "Registered Face");
+                List<double> faceEmbedding =
+                    await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
+                print("Face Embedding: $faceEmbedding");
+                ref.refresh(fakeCountProvider);
+                ref.refresh(realCountProvider);
+                // _faceEmbedding.disposeModels();
+                final recognizedFace = await _recognizeFace(faceEmbedding, ref);
+                // await Future.delayed(Duration(seconds: 1));
+                if (recognizedFace != null) {
+                  print('Recognized face: ${recognizedFace.name}');
+                  Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
+                } else {
+                  // await ref
+                  //     .read(databaseProvider)
+                  //     .faceEmbeddingsDao
+                  //     .insertFace(widget.name, faceEmbedding);
+                  Fluttertoast.showToast(
+                      msg: "Face Not Registered, Please register your face first");
+                }
               }
               Navigator.pop(context);
             } else {
