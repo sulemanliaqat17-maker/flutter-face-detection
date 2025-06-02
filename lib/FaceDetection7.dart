@@ -5,9 +5,7 @@ import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:face_detection_app/FaceEmbedding.dart';
 import 'package:face_detection_app/models/FaceData.dart';
-import 'package:face_detection_app/utils/colors.dart';
 import 'package:face_detection_app/utils/utils.dart';
-import 'package:face_detection_app/widgets/customizable_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +16,8 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as Image;
 import 'package:opencv_dart/opencv.dart' as cv;
 import 'package:path_provider/path_provider.dart';
+import 'package:timer_count_down/timer_controller.dart';
+import 'package:timer_count_down/timer_count_down.dart';
 
 import '../../providers/api_face_detector_notifier.dart';
 
@@ -39,6 +39,10 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
   int real = 0;
   int iteration = 0;
   bool isStartedStreaming = false;
+  final CountdownController _countdownController = CountdownController(autoStart: true);
+  bool countdownHide = true;
+  Size? size;
+  double aspectRatio = 0.0;
 
   static final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
@@ -58,6 +62,12 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
   void initState() {
     super.initState();
     _initializeCamera();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() {
+        countdownHide = false;
+      });
+      _countdownController.start();
+    });
     // _loadORCModel();
   }
 
@@ -65,11 +75,17 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     _controller = CameraController(
       widget.cameras[1],
       ResolutionPreset.low,
+      enableAudio: false,
       imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
     );
     _initializeControllerFuture = _controller.initialize();
     await _initializeControllerFuture;
-
+    aspectRatio = _controller.value.aspectRatio;
+    double? zoomLevelMax = await _controller?.getMaxZoomLevel();
+    print(zoomLevelMax);
+    if (zoomLevelMax != null) {
+      await _controller?.setZoomLevel(1.3);
+    }
     // Start image stream
   }
 
@@ -85,6 +101,7 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
   Widget build(BuildContext context) {
     // isProcessing = ref.watch(isProcessingProvider);
     // iteration = ref.watch(iterationProvider);
+    size = MediaQuery.of(context).size;
     return Scaffold(
       appBar: AppBar(
         title: Text('Face Embedding with Camera'),
@@ -93,17 +110,12 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done) {
-            return Stack(
-              children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    CameraPreview(_controller),
-                    // LoadImageWidget(),
-                  ],
-                ),
-                Positioned(
-                  child: Container(
+            return Container(
+              height: MediaQuery.of(context).size.height,
+              width: MediaQuery.of(context).size.width,
+              child: Column(
+                children: [
+                  Container(
                     color: Colors.white,
                     padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     child: Row(
@@ -114,12 +126,77 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
                       ],
                     ),
                   ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
+                  SizedBox(
+                    height: 20.h,
+                  ),
+                  Stack(
+                    children: [
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 250,
+                            height: 250,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.purple, width: 5),
+                            ),
+                            child: ClipOval(
+                              child: FittedBox(
+                                fit: BoxFit.cover,
+                                child: SizedBox(
+                                  width: aspectRatio >= 1 ? 190 * aspectRatio : 190,
+                                  height: aspectRatio >= 1 ? 340 : 340 / aspectRatio,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      CameraPreview(_controller!),
+                                      Positioned(
+                                        child: Visibility(
+                                          visible: !countdownHide,
+                                          child: Countdown(
+                                            controller: _countdownController,
+                                            seconds: 4,
+                                            build: (_, double time) => Text(
+                                              (time.toInt() == 0)
+                                                  ? "Capturing..."
+                                                  : time.toInt().toString(),
+                                              style: TextStyle(
+                                                fontSize: 40,
+                                                color: Colors.blue,
+                                              ),
+                                            ),
+                                            interval: Duration(milliseconds: 100),
+                                            onFinished: () async {
+                                              // Retake or capture logic
+                                              setState(() {
+                                                countdownHide = true;
+                                                isProcessing = false;
+                                              });
+                                              await _controller
+                                                  ?.startImageStream(startImageProcess);
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // CameraPreview(_controller),
+                          // LoadImageWidget(),
+                        ],
+                      ),
+                    ],
+                  ),
+                  /*Expanded(
+                    child: SizedBox(
+                      height: 20.h,
+                    ),
+                  ),
+                  Container(
                     color: Colors.white,
                     padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     child: Row(
@@ -133,18 +210,18 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
                             isOutlined: false,
                             buttonTitle: isStartedStreaming ? "Stop" : "Start",
                             onPressed: () async {
-                              if (!isStartedStreaming) {
-                                setState(() {
-                                  isStartedStreaming = !isStartedStreaming;
-                                  isProcessing = false;
-                                });
-                                await _controller.startImageStream(startImageProcess);
-                              } else {
-                                setState(() {
-                                  isStartedStreaming = !isStartedStreaming;
-                                });
-                                await _controller.stopImageStream();
-                              }
+                              // if (!isStartedStreaming) {
+                              //   setState(() {
+                              //     isStartedStreaming = !isStartedStreaming;
+                              //     isProcessing = false;
+                              //   });
+                              //   await _controller.startImageStream(startImageProcess);
+                              // } else {
+                              //   setState(() {
+                              //     isStartedStreaming = !isStartedStreaming;
+                              //   });
+                              //   await _controller.stopImageStream();
+                              // }
                             },
                             buttonTitleStyle: TextStyle(
                               fontSize: 16.sp,
@@ -157,9 +234,9 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
+                  ),*/
+                ],
+              ),
             );
           } else {
             return Center(child: CircularProgressIndicator());

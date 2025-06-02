@@ -2,6 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:face_detection_app/FaceDetection7.dart';
 import 'package:face_detection_app/FaceEmbedding.dart';
 import 'package:face_detection_app/RegisterFaceScreen.dart';
+import 'package:face_detection_app/providers/api_face_detector_notifier.dart';
 import 'package:face_detection_app/widgets/customizable_textfield.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,14 +58,14 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class HomeView extends StatefulWidget {
+class HomeView extends ConsumerStatefulWidget {
   const HomeView({super.key});
 
   @override
-  State<HomeView> createState() => _HomeViewState();
+  ConsumerState<HomeView> createState() => _HomeViewState();
 }
 
-class _HomeViewState extends State<HomeView> {
+class _HomeViewState extends ConsumerState<HomeView> {
   final nameController = TextEditingController();
   final nameFocusNode = FocusNode();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -113,6 +114,8 @@ class _HomeViewState extends State<HomeView> {
             ),
             ElevatedButton(
               onPressed: () async {
+                ref.refresh(fakeCountProvider);
+                ref.refresh(realCountProvider);
                 final cameras = await availableCameras();
                 await FaceEmbedding1.instance.loadModel();
                 // await FaceEmbeddingMat.instance.loadModel();

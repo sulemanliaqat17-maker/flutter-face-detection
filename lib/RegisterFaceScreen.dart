@@ -159,6 +159,7 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
         Container(
           margin: const EdgeInsets.only(top: 10),
           padding: const EdgeInsets.all(16),
+          width: MediaQuery.of(context).size.width,
           color: Colors.deepPurple,
           child: Column(
             children: [
