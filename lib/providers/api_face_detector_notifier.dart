@@ -14,6 +14,7 @@ final apiFaceDetectorNotifierProvider =
 
 final databaseProvider = StateProvider((ref) => MyDatabase());
 final imageMemoryProvider = StateProvider<Uint8List?>((ref) => null);
+final imageMemory1Provider = StateProvider<Uint8List?>((ref) => null);
 final imageProvider = StateProvider<InputImage?>((ref) => null);
 final realCountProvider = StateProvider<int>((ref) => 0);
 final fakeCountProvider = StateProvider<int>((ref) => 0);

@@ -1,9 +1,12 @@
 import 'package:camera/camera.dart';
-import 'package:face_detection_app/FaceDetection7.dart';
 import 'package:face_detection_app/FaceEmbedding.dart';
+import 'package:face_detection_app/FaceEnbeddingMat.dart';
 import 'package:face_detection_app/RegisterFaceScreen.dart';
+import 'package:face_detection_app/a.dart';
+import 'package:face_detection_app/b.dart';
 import 'package:face_detection_app/providers/api_face_detector_notifier.dart';
 import 'package:face_detection_app/widgets/customizable_textfield.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -69,9 +72,11 @@ class _HomeViewState extends ConsumerState<HomeView> {
   final nameController = TextEditingController();
   final nameFocusNode = FocusNode();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  Uint8List? image = null;
 
   @override
   Widget build(BuildContext context) {
+    image = ref.watch(imageMemoryProvider);
     return Scaffold(
         body: Container(
       height: MediaQuery.of(context).size.height,
@@ -82,6 +87,16 @@ class _HomeViewState extends ConsumerState<HomeView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            image != null
+                ? Image.memory(
+                    image!,
+                    height: 200.h,
+                    width: 200.w,
+                    fit: BoxFit.cover,
+                  )
+                : FlutterLogo(
+                    size: 100.sp,
+                  ),
             CustomizableTextField(
               title: null,
               controller: nameController,
@@ -117,12 +132,37 @@ class _HomeViewState extends ConsumerState<HomeView> {
                 ref.refresh(fakeCountProvider);
                 ref.refresh(realCountProvider);
                 final cameras = await availableCameras();
+                // await FaceEmbedding1.instance.loadModel();
+                await FaceEmbeddingMat.instance.loadModel();
+                await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => CameraScreen8b(
+                              cameras: cameras,
+                              name: nameController.text,
+                            )));
+                // await FaceEmbedding1.instance.dispose();
+                await FaceEmbeddingMat.instance.dispose();
+                /*Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => FaceAngleDetectionScreen(
+                                cameras: cameras,
+                              )));*/
+              },
+              child: Text("FaceDetect Mat"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                ref.refresh(fakeCountProvider);
+                ref.refresh(realCountProvider);
+                final cameras = await availableCameras();
                 await FaceEmbedding1.instance.loadModel();
                 // await FaceEmbeddingMat.instance.loadModel();
                 await Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => CameraScreen7(
+                        builder: (context) => CameraScreen7a(
                               cameras: cameras,
                               name: nameController.text,
                             )));

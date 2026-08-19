@@ -51,12 +51,18 @@ class FaceEmbedding {
 
     // Convert image to RGB and normalize pixel values to [-1, 1]
     List<double> input = [];
-    for (int y = 0; y < image.height; y++) {
-      for (int x = 0; x < image.width; x++) {
-        int pixel = image.getPixel(x, y);
-        double r = (Image.getRed(pixel) / 127.5) - 1.0;
-        double g = (Image.getGreen(pixel) / 127.5) - 1.0;
-        double b = (Image.getBlue(pixel) / 127.5) - 1.0;
+    int y = 0;
+    int x = 0;
+    int pixel;
+    double r;
+    double g;
+    double b;
+    for (y = 0; y < image.height; y++) {
+      for (x = 0; x < image.width; x++) {
+        pixel = image.getPixel(x, y);
+        r = (Image.getRed(pixel) / 127.5) - 1.0;
+        g = (Image.getGreen(pixel) / 127.5) - 1.0;
+        b = (Image.getBlue(pixel) / 127.5) - 1.0;
         input.addAll([r, g, b]);
       }
     }
@@ -108,9 +114,12 @@ class FaceEmbedding {
     // final step = rgbImage.step;
 
     var index = 0;
-    for (var i = 0; i < targetHeight; i++) {
-      for (var j = 0; j < targetWidth; j++) {
-        final pixelIndex = rgbImage.atPixel(i, j);
+    var i = 0;
+    var j = 0;
+    List<num> pixelIndex;
+    for (i = 0; i < targetHeight; i++) {
+      for (j = 0; j < targetWidth; j++) {
+        pixelIndex = rgbImage.atPixel(i, j);
         floatArray[index++] = pixelIndex[0].toDouble(); // R
         floatArray[index++] = pixelIndex[1].toDouble(); // G
         floatArray[index++] = pixelIndex[2].toDouble(); // B
@@ -119,7 +128,9 @@ class FaceEmbedding {
 
     // Release temporary Mats (important for memory management)
     resizedImage.release();
+    // resizedImage.dispose();
     rgbImage.release();
+    // rgbImage.dispose();
 
     return floatArray;
   }
@@ -227,10 +238,10 @@ class FaceEmbedding1 {
 
   /// Dispose resources
   Future<void> dispose() async {
-    await _lock.synchronized(() {
-      isolateInterpreter?.close();
-      isolateInterpreter1?.close();
-      isolateInterpreter2?.close();
+    await _lock.synchronized(() async {
+      await isolateInterpreter?.close();
+      await isolateInterpreter1?.close();
+      await isolateInterpreter2?.close();
       interpreter?.close();
       interpreter1?.close();
       interpreter2?.close();
@@ -257,8 +268,6 @@ class FaceEmbedding1 {
   }
 
   Future<Float32List> preprocessImage(cv.Mat image, int targetWidth, int targetHeight) async {
-    const IMAGE_CHANNELS = 3; // RGB channels
-
     // Resize the image to target dimensions
     final resizedImage = cv.Mat.empty();
     await cv.resizeAsync(
@@ -271,28 +280,19 @@ class FaceEmbedding1 {
     // Convert BGR to RGB
     final rgbImage = cv.Mat.empty();
     await cv.cvtColorAsync(resizedImage, dst: rgbImage, cv.COLOR_BGR2RGB);
-
-    // Prepare float array for normalized pixel data
-    final floatArray = Float32List(targetWidth * targetHeight * IMAGE_CHANNELS);
-
-    // Get raw pixel data (more efficient than pixel-by-pixel access)
-    // final data = rgbImage.data;
-    // final channels = rgbImage.channels;
-    // final step = rgbImage.step;
-
-    var index = 0;
-    for (var i = 0; i < targetHeight; i++) {
-      for (var j = 0; j < targetWidth; j++) {
-        final pixelIndex = rgbImage.atPixel(i, j);
-        floatArray[index++] = pixelIndex[0].toDouble(); // R
-        floatArray[index++] = pixelIndex[1].toDouble(); // G
-        floatArray[index++] = pixelIndex[2].toDouble(); // B
-      }
-    }
-
-    // Release temporary Mats (important for memory management)
     resizedImage.release();
+
+    // Read the whole RGB buffer in a single FFI call, then widen the
+    // uint8 pixels (0-255, row-major, RGB) to float32 in one tight Dart
+    // loop. This is identical in value to the old per-pixel atPixel()
+    // path but avoids ~targetWidth*targetHeight FFI round trips per frame.
+    final rgbBytes = rgbImage.data;
     rgbImage.release();
+
+    final floatArray = Float32List(rgbBytes.length);
+    for (var i = 0; i < rgbBytes.length; i++) {
+      floatArray[i] = rgbBytes[i].toDouble();
+    }
 
     return floatArray;
   }
@@ -304,8 +304,9 @@ class FaceEmbedding1 {
     // for (int i = 0; i < image.length; i++) {
     //   inputBuffer[i] = image[i] / 1.0; // Normalize to [0, 1]
     // }
-    final inputBuffer = await preprocessImage(matImage, 80, 80);
+    Float32List? inputBuffer = await preprocessImage(matImage, 80, 80);
     matImage.release();
+    // matImage.dispose();
 
     // Prepare output tensor with the correct shape [1, 512]
     var outputTensor = List<double>.filled(3, 0).reshape([1, 3]);
@@ -318,16 +319,18 @@ class FaceEmbedding1 {
         await computeModel1(Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
 
     // Return the face embedding
+    inputBuffer = null;
     return await outputTensor[0];
   }
 
   Future<List<dynamic>> computeModel1(Model1DataInput data) async {
-    var inputTensor = data.inputBuffer.reshape([1, 80, 80, 3]);
+    List<dynamic>? inputTensor = data.inputBuffer.reshape([1, 80, 80, 3]);
 
     checkOutputShape(interpreter1);
 
     // Run inference
     await isolateInterpreter1.run(inputTensor, data.outputTensor);
+    inputTensor = null;
     return data.outputTensor;
   }
 
@@ -339,8 +342,9 @@ class FaceEmbedding1 {
       inputBuffer[i] = image[i] / 255.0; // Normalize to [0, 1]
     }*/
 
-    final inputBuffer = await preprocessImage(matImage, 80, 80);
+    Float32List? inputBuffer = await preprocessImage(matImage, 80, 80);
     matImage.release();
+    // matImage.dispose();
     // Reshape to match the model's input shape [1, 80, 80, 3]
 
     // Prepare output tensor with the correct shape [1, 512]
@@ -350,22 +354,24 @@ class FaceEmbedding1 {
         await computeModel2(Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
 
     // Return the face embedding
+    inputBuffer = null;
     return await outputTensor[0];
   }
 
   Future<List<dynamic>> computeModel2(Model1DataInput data) async {
-    var inputTensor = data.inputBuffer.reshape([1, 80, 80, 3]);
+    List<dynamic>? inputTensor = data.inputBuffer.reshape([1, 80, 80, 3]);
 
     checkOutputShape(interpreter2);
 
     // Run inference
     await isolateInterpreter2.run(inputTensor, data.outputTensor);
+    inputTensor = null;
     return data.outputTensor;
   }
 
   void checkOutputShape(Interpreter interpreter) {
     // Get output tensor details
-    final outputTensors = interpreter.getOutputTensors();
+    // final outputTensors = interpreter.getOutputTensors();
 
     // Print output tensor details
     // for (var tensor in outputTensors) {
@@ -388,12 +394,18 @@ List<double> preprocessFrame(Image.Image image) {
 
   // Convert image to RGB and normalize pixel values to [-1, 1]
   List<double> input = [];
-  for (int y = 0; y < image.height; y++) {
-    for (int x = 0; x < image.width; x++) {
-      int pixel = image.getPixel(x, y);
-      double r = (Image.getRed(pixel) / 127.5) - 1.0;
-      double g = (Image.getGreen(pixel) / 127.5) - 1.0;
-      double b = (Image.getBlue(pixel) / 127.5) - 1.0;
+  int x = 0;
+  int y = 0;
+  int pixel;
+  double r;
+  double g;
+  double b;
+  for (y = 0; y < image.height; y++) {
+    for (x = 0; x < image.width; x++) {
+      pixel = image.getPixel(x, y);
+      r = (Image.getRed(pixel) / 127.5) - 1.0;
+      g = (Image.getGreen(pixel) / 127.5) - 1.0;
+      b = (Image.getBlue(pixel) / 127.5) - 1.0;
       input.addAll([r, g, b]);
     }
   }

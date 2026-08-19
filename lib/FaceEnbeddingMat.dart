@@ -25,12 +25,18 @@ class FaceEmbeddingMat {
     await _lock.synchronized(() async {
       if (_isInitialized) return;
       try {
-        interpreter = await Interpreter.fromAsset('assets/models/face_net_512.tflite');
-        interpreter1 = await Interpreter.fromAsset('assets/models/first_model.tflite');
-        interpreter2 = await Interpreter.fromAsset('assets/models/second_model.tflite');
-        isolateInterpreter = await IsolateInterpreter.create(address: interpreter.address);
-        isolateInterpreter1 = await IsolateInterpreter.create(address: interpreter1.address);
-        isolateInterpreter2 = await IsolateInterpreter.create(address: interpreter2.address);
+        interpreter =
+            await Interpreter.fromAsset('assets/models/face_net_512.tflite');
+        interpreter1 =
+            await Interpreter.fromAsset('assets/models/first_model.tflite');
+        interpreter2 =
+            await Interpreter.fromAsset('assets/models/second_model.tflite');
+        isolateInterpreter =
+            await IsolateInterpreter.create(address: interpreter.address);
+        isolateInterpreter1 =
+            await IsolateInterpreter.create(address: interpreter1.address);
+        isolateInterpreter2 =
+            await IsolateInterpreter.create(address: interpreter2.address);
         _isInitialized = true;
       } catch (e) {
         print('Failed to load model: $e');
@@ -91,7 +97,8 @@ class FaceEmbeddingMat {
 
     // Convert to float32 and normalize pixel values to [-1, 1]
     cv.Mat floatMat = cv.Mat.empty();
-    floatMat = await resizedMat.convertToAsync(cv.MatType.CV_32FC3, alpha: 2.0 / 255.0, beta: -1.0);
+    floatMat = await resizedMat.convertToAsync(cv.MatType.CV_32FC3,
+        alpha: 2.0 / 255.0, beta: -1.0);
     resizedMat.release();
 
     // Get raw data as List<double>
@@ -112,9 +119,8 @@ class FaceEmbeddingMat {
     return outputTensor[0];
   }
 
-  Future<Float32List> preprocessImage(cv.Mat image, int targetWidth, int targetHeight) async {
-    const IMAGE_CHANNELS = 3; // RGB channels
-
+  Future<Float32List> preprocessImage(
+      cv.Mat image, int targetWidth, int targetHeight) async {
     // Resize the image to target dimensions
     final resizedImage = cv.Mat.empty();
     await cv.resizeAsync(
@@ -129,31 +135,23 @@ class FaceEmbeddingMat {
     await cv.cvtColorAsync(resizedImage, dst: rgbImage, cv.COLOR_BGR2RGB);
     resizedImage.release();
 
-    // Prepare float array for normalized pixel data
-    final floatArray = Float32List(targetWidth * targetHeight * IMAGE_CHANNELS);
-
-    // Get raw pixel data (more efficient than pixel-by-pixel access)
-    // final data = rgbImage.data;
-    // final channels = rgbImage.channels;
-    // final step = rgbImage.step;
-
-    var index = 0;
-    for (var i = 0; i < targetHeight; i++) {
-      for (var j = 0; j < targetWidth; j++) {
-        final pixelIndex = rgbImage.atPixel(i, j);
-        floatArray[index++] = pixelIndex[0].toDouble(); // R
-        floatArray[index++] = pixelIndex[1].toDouble(); // G
-        floatArray[index++] = pixelIndex[2].toDouble(); // B
-      }
-    }
-
-    // Release temporary Mats (important for memory management)
+    // Read the whole RGB buffer in a single FFI call, then widen the
+    // uint8 pixels (0-255, row-major, RGB) to float32 in one tight Dart
+    // loop. This is identical in value to the old per-pixel atPixel()
+    // path but avoids ~targetWidth*targetHeight FFI round trips per frame.
+    final rgbBytes = rgbImage.data;
     rgbImage.release();
+
+    final floatArray = Float32List(rgbBytes.length);
+    for (var i = 0; i < rgbBytes.length; i++) {
+      floatArray[i] = rgbBytes[i].toDouble();
+    }
 
     return floatArray;
   }
 
-  Future<List<dynamic>> getDataFromModel1(/*Uint8List image,*/ cv.Mat matImage) async {
+  Future<List<dynamic>> getDataFromModel1(
+      /*Uint8List image,*/ cv.Mat matImage) async {
     if (!_isInitialized) throw Exception("Models not loaded");
     // Preprocess the frame
     // final inputBuffer = Float32List(80 * 80 * 3); // 80x80 RGB image
@@ -169,8 +167,8 @@ class FaceEmbeddingMat {
 
     // Prepare input tensor
 
-    outputTensor =
-        await computeModel1(Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
+    outputTensor = await computeModel1(
+        Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
 
     // Return the face embedding
     return await outputTensor[0];
@@ -186,7 +184,8 @@ class FaceEmbeddingMat {
     return data.outputTensor;
   }
 
-  Future<List<dynamic>> getDataFromModel2(/*Uint8List image,*/ cv.Mat matImage) async {
+  Future<List<dynamic>> getDataFromModel2(
+      /*Uint8List image,*/ cv.Mat matImage) async {
     if (!_isInitialized) throw Exception("Models not loaded");
     // Preprocess the frame
     /*final inputBuffer = Float32List(80 * 80 * 3); // 80x80 RGB image
@@ -202,8 +201,8 @@ class FaceEmbeddingMat {
     // Prepare output tensor with the correct shape [1, 512]
     var outputTensor = List<double>.filled(3, 0).reshape([1, 3]);
 
-    outputTensor =
-        await computeModel2(Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
+    outputTensor = await computeModel2(
+        Model1DataInput(inputBuffer: inputBuffer, outputTensor: outputTensor));
 
     // Return the face embedding
     return await outputTensor[0];

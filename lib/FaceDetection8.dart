@@ -42,7 +42,7 @@ class _CameraScreen8State extends ConsumerState<CameraScreen8> {
   static final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableContours: true,
-      enableLandmarks: true,
+      enableClassification: true,
     ),
   );
 

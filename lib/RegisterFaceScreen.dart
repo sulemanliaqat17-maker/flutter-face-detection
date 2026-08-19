@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:camera/camera.dart';
@@ -52,11 +53,11 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
   void initState() {
     super.initState();
     _initCamera();
+    // Only bounding box + head Euler angles are used downstream, so
+    // tracking/landmarks/classification are left off to keep each frame's
+    // detection pass cheap.
     _faceDetector = FaceDetector(
       options: FaceDetectorOptions(
-        enableTracking: true,
-        enableLandmarks: true,
-        enableClassification: true,
         minFaceSize: 0.15,
         performanceMode: FaceDetectorMode.fast,
       ),
@@ -344,12 +345,20 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
     _yaw = _currentFace!.headEulerAngleY ?? 0;
     _roll = _currentFace!.headEulerAngleZ ?? 0;
     _pitch = _currentFace!.headEulerAngleX ?? 0;
-
-    int faceHorizontal = _yaw > 25
-        ? -1
-        : _yaw < -25
-            ? 1
-            : 0;
+    int faceHorizontal = -2;
+    if (Platform.isIOS) {
+      faceHorizontal = _yaw > 25
+          ? 1
+          : _yaw < -25
+              ? -1
+              : 0;
+    } else {
+      faceHorizontal = _yaw > 25
+          ? -1
+          : _yaw < -25
+              ? 1
+              : 0;
+    }
     int faceTilt = _roll > 10
         ? 1
         : _roll < -10
@@ -365,7 +374,7 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
       Img.Image croppedImage = await cropFace1(
           Crop1DataInput(face: face, cameraImage: cameraImage, camera: cameraList[1]));
       List<double> faceEmbedding = await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
-      print("Face Embedding: $faceEmbedding");
+      if (kDebugMode) print("Face Embedding: $faceEmbedding");
       currentFaceEmbedding = faceEmbedding;
       // _faceEmbedding.disposeModels();
       final recognizedFace = await _recognizeFace(faceEmbedding, ref);

@@ -43,11 +43,24 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
   bool countdownHide = true;
   Size? size;
   double aspectRatio = 0.0;
+  List<Face> faces = [];
+  List<double> faceEmbedding = [];
+  List<dynamic> outputModel1 = [];
+  List<dynamic> resultModel1 = [];
+  List<dynamic> outputModel2 = [];
+  List<dynamic> resultModel2 = [];
+  List<double> prediction = [];
+  late Image.Image croppedImage;
+  late Directory tempDir;
+  late File tempFile;
+  InputImage? inputImage;
+  late Face face;
 
   static final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableContours: true,
       enableLandmarks: true,
+      enableClassification: true,
     ),
   );
 
@@ -62,7 +75,9 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
   void initState() {
     super.initState();
     _initializeCamera();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      tempDir = await getApplicationCacheDirectory();
+      tempFile = File('${tempDir.path}/temp.png');
       setState(() {
         countdownHide = false;
       });
@@ -102,146 +117,152 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     // isProcessing = ref.watch(isProcessingProvider);
     // iteration = ref.watch(iterationProvider);
     size = MediaQuery.of(context).size;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Face Embedding with Camera'),
-      ),
-      body: FutureBuilder<void>(
-        future: _initializeControllerFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done) {
-            return Container(
-              height: MediaQuery.of(context).size.height,
-              width: MediaQuery.of(context).size.width,
-              child: Column(
-                children: [
-                  Container(
-                    color: Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("Fake: ${ref.watch(fakeCountProvider)}"),
-                        Text("Real: ${ref.watch(realCountProvider)}"),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    height: 20.h,
-                  ),
-                  Stack(
-                    children: [
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (value) async {
+        await _faceDetector.close();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Face Embedding with Camera'),
+        ),
+        body: FutureBuilder<void>(
+          future: _initializeControllerFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done) {
+              return Container(
+                height: MediaQuery.of(context).size.height,
+                width: MediaQuery.of(context).size.width,
+                child: Column(
+                  children: [
+                    Container(
+                      color: Colors.white,
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            width: 250,
-                            height: 250,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.purple, width: 5),
-                            ),
-                            child: ClipOval(
-                              child: FittedBox(
-                                fit: BoxFit.cover,
-                                child: SizedBox(
-                                  width: aspectRatio >= 1 ? 190 * aspectRatio : 190,
-                                  height: aspectRatio >= 1 ? 340 : 340 / aspectRatio,
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      CameraPreview(_controller!),
-                                      Positioned(
-                                        child: Visibility(
-                                          visible: !countdownHide,
-                                          child: Countdown(
-                                            controller: _countdownController,
-                                            seconds: 4,
-                                            build: (_, double time) => Text(
-                                              (time.toInt() == 0)
-                                                  ? "Capturing..."
-                                                  : time.toInt().toString(),
-                                              style: TextStyle(
-                                                fontSize: 40,
-                                                color: Colors.blue,
+                          Text("Fake: ${ref.watch(fakeCountProvider)}"),
+                          Text("Real: ${ref.watch(realCountProvider)}"),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20.h,
+                    ),
+                    Stack(
+                      children: [
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 250,
+                              height: 250,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.purple, width: 5),
+                              ),
+                              child: ClipOval(
+                                child: FittedBox(
+                                  fit: BoxFit.cover,
+                                  child: SizedBox(
+                                    width: aspectRatio >= 1 ? 190 * aspectRatio : 190,
+                                    height: aspectRatio >= 1 ? 340 : 340 / aspectRatio,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        CameraPreview(_controller!),
+                                        Positioned(
+                                          child: Visibility(
+                                            visible: !countdownHide,
+                                            child: Countdown(
+                                              controller: _countdownController,
+                                              seconds: 4,
+                                              build: (_, double time) => Text(
+                                                (time.toInt() == 0)
+                                                    ? "Capturing..."
+                                                    : time.toInt().toString(),
+                                                style: TextStyle(
+                                                  fontSize: 40,
+                                                  color: Colors.blue,
+                                                ),
                                               ),
+                                              interval: Duration(milliseconds: 100),
+                                              onFinished: () async {
+                                                // Retake or capture logic
+                                                setState(() {
+                                                  countdownHide = true;
+                                                  isProcessing = false;
+                                                });
+                                                await _controller
+                                                    ?.startImageStream(startImageProcess);
+                                              },
                                             ),
-                                            interval: Duration(milliseconds: 100),
-                                            onFinished: () async {
-                                              // Retake or capture logic
-                                              setState(() {
-                                                countdownHide = true;
-                                                isProcessing = false;
-                                              });
-                                              await _controller
-                                                  ?.startImageStream(startImageProcess);
-                                            },
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                          // CameraPreview(_controller),
-                          // LoadImageWidget(),
-                        ],
-                      ),
-                    ],
-                  ),
-                  /*Expanded(
-                    child: SizedBox(
-                      height: 20.h,
-                    ),
-                  ),
-                  Container(
-                    color: Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: CustomizableTextButton(
-                            prefixButtonIcon: null,
-                            suffixButtonIcon: null,
-                            isFullWidth: true,
-                            isOutlined: false,
-                            buttonTitle: isStartedStreaming ? "Stop" : "Start",
-                            onPressed: () async {
-                              // if (!isStartedStreaming) {
-                              //   setState(() {
-                              //     isStartedStreaming = !isStartedStreaming;
-                              //     isProcessing = false;
-                              //   });
-                              //   await _controller.startImageStream(startImageProcess);
-                              // } else {
-                              //   setState(() {
-                              //     isStartedStreaming = !isStartedStreaming;
-                              //   });
-                              //   await _controller.stopImageStream();
-                              // }
-                            },
-                            buttonTitleStyle: TextStyle(
-                              fontSize: 16.sp,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            buttonBorderRadius: 10,
-                            buttonColor: primaryColor,
-                          ),
+                            // CameraPreview(_controller),
+                            // LoadImageWidget(),
+                          ],
                         ),
                       ],
                     ),
-                  ),*/
-                ],
-              ),
-            );
-          } else {
-            return Center(child: CircularProgressIndicator());
-          }
-        },
+                    /*Expanded(
+                      child: SizedBox(
+                        height: 20.h,
+                      ),
+                    ),
+                    Container(
+                      color: Colors.white,
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: CustomizableTextButton(
+                              prefixButtonIcon: null,
+                              suffixButtonIcon: null,
+                              isFullWidth: true,
+                              isOutlined: false,
+                              buttonTitle: isStartedStreaming ? "Stop" : "Start",
+                              onPressed: () async {
+                                // if (!isStartedStreaming) {
+                                //   setState(() {
+                                //     isStartedStreaming = !isStartedStreaming;
+                                //     isProcessing = false;
+                                //   });
+                                //   await _controller.startImageStream(startImageProcess);
+                                // } else {
+                                //   setState(() {
+                                //     isStartedStreaming = !isStartedStreaming;
+                                //   });
+                                //   await _controller.stopImageStream();
+                                // }
+                              },
+                              buttonTitleStyle: TextStyle(
+                                fontSize: 16.sp,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              buttonBorderRadius: 10,
+                              buttonColor: primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),*/
+                  ],
+                ),
+              );
+            } else {
+              return Center(child: CircularProgressIndicator());
+            }
+          },
+        ),
       ),
     );
   }
@@ -259,15 +280,13 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     }
   }
 
-  static InputImage? _inputImageFromCameraImage(
-      CameraImage image, CameraDescription cameraDescription) {
+  static InputImage? _inputImageFromCameraImage(CameraImage image, CameraDescription camera) {
     if (_controller == null) return null;
 
     // get image rotation
     // it is used in android to convert the InputImage from Dart to Java: https://github.com/flutter-ml/google_ml_kit_flutter/blob/master/packages/google_mlkit_commons/android/src/main/java/com/google_mlkit_commons/InputImageConverter.java
     // `rotation` is not used in iOS to convert the InputImage from Dart to Obj-C: https://github.com/flutter-ml/google_ml_kit_flutter/blob/master/packages/google_mlkit_commons/ios/Classes/MLKVisionImage%2BFlutterPlugin.m
     // in both platforms `rotation` and `camera.lensDirection` can be used to compensate `x` and `y` coordinates on a canvas: https://github.com/flutter-ml/google_ml_kit_flutter/blob/master/packages/example/lib/vision_detector_views/painters/coordinates_translator.dart
-    final camera = cameraDescription;
     final sensorOrientation = camera.sensorOrientation;
     // print(
     //     'lensDirection: ${camera.lensDirection}, sensorOrientation: $sensorOrientation, ${_controller?.value.deviceOrientation} ${_controller?.value.lockedCaptureOrientation} ${_controller?.value.isCaptureOrientationLocked}');
@@ -376,20 +395,19 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
 
   Future<void> _processImage(CameraImage? image, CameraDescription camera) async {
     if (image != null) {
-      InputImage? inputImage = _inputImageFromCameraImage(image, camera);
+      inputImage = _inputImageFromCameraImage(image, camera);
       // ref.read(imageMemoryProvider.notifier).state = inputImage.bytes;
       // ref.read(imageProvider.notifier).state = inputImage;
       try {
         if (inputImage != null) {
-          final faces = await _faceDetector.processImage(inputImage);
+          faces = await _faceDetector.processImage(inputImage!);
           if (faces.isNotEmpty) {
-            Face face = faces.first;
+            face = faces.first;
             fake = ref.read(fakeCountProvider);
             real = ref.read(realCountProvider);
-            Map<String, dynamic> data =
-                await _extractFaceData(face, inputImage, image, ref, camera);
+            Map<String, dynamic> data = await _extractFaceData(face, image, ref, camera);
             bool isFake = data["Fake"];
-            Image.Image croppedImage = data["CroppedImage"] as Image.Image;
+            // Image.Image croppedImage = data["CroppedImage"] as Image.Image;
 
             ref.read(fakeCountProvider.notifier).state = isFake ? (fake + 1) : fake;
             ref.read(realCountProvider.notifier).state = isFake ? real : (real + 1);
@@ -398,17 +416,17 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
               if (ref.read(fakeCountProvider.notifier).state > 2) {
                 ref.refresh(fakeCountProvider);
                 ref.refresh(realCountProvider);
-                Fluttertoast.showToast(
-                    msg:
-                        "Kindly ensure that the facial registration of this person is bright and clear.");
+                // Fluttertoast.showToast(
+                //     msg:
+                //         "Kindly ensure that the facial registration of this person is bright and clear.");
+                Fluttertoast.showToast(msg: "Multiple Fake Attempts Occurred");
               } else {
-                List<double> faceEmbedding =
-                    await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
+                faceEmbedding = await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
                 print("Face Embedding: $faceEmbedding");
                 ref.refresh(fakeCountProvider);
                 ref.refresh(realCountProvider);
                 // _faceEmbedding.disposeModels();
-                final recognizedFace = await _recognizeFace(faceEmbedding, ref);
+                FaceData? recognizedFace = await _recognizeFace(faceEmbedding, ref);
                 // await Future.delayed(Duration(seconds: 1));
                 if (recognizedFace != null) {
                   print('Recognized face: ${recognizedFace.name}');
@@ -448,11 +466,11 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     }
   }
 
-  static Future<FaceData?> _recognizeFace(List<double> faceData, WidgetRef ref) async {
-    double threshold = 0.7;
-    final allFaces = await ref.read(databaseProvider).faceEmbeddingsDao.getAllFaces();
+  Future<FaceData?> _recognizeFace(List<double> faceData, WidgetRef ref) async {
+    double threshold = 0.8;
+    List<FaceData> allFaces = await ref.read(databaseProvider).faceEmbeddingsDao.getAllFaces();
     if (allFaces.length != 0) {
-      for (final storedFace in allFaces) {
+      for (FaceData storedFace in allFaces) {
         double similarity = cosineSimilarity(faceData, Utils.parseEmbedding(storedFace.embedding!));
         if (similarity > threshold) {
           return storedFace;
@@ -492,14 +510,11 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     return dotProduct / (magnitude1 * magnitude2);
   }
 
-  Future<Map<String, dynamic>> _extractFaceData(Face face, InputImage inputImage, CameraImage image,
-      WidgetRef ref, CameraDescription camera) async {
+  Future<Map<String, dynamic>> _extractFaceData(
+      Face face, CameraImage image, WidgetRef ref, CameraDescription camera) async {
     // Step 1: Crop the face from the input image
-    Image.Image croppedImage =
-        await cropFace1(Crop1DataInput(face: face, cameraImage: image, camera: camera));
+    croppedImage = await cropFace1(Crop1DataInput(face: face, cameraImage: image, camera: camera));
 
-    Directory tempDir = await getApplicationCacheDirectory();
-    File tempFile = File('${tempDir.path}/temp.png');
     await tempFile.writeAsBytes(Image.encodePng(croppedImage));
 
     cv.Mat mat = await cv.imreadAsync(tempFile.path);
@@ -528,24 +543,22 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     mat.release();
     mat.dispose();
 
-    List<dynamic> outputModel1 =
-        await FaceEmbedding1.instance.getDataFromModel1(/*bitmapImage1,*/ imageMat1);
+    outputModel1 = await FaceEmbedding1.instance.getDataFromModel1(/*bitmapImage1,*/ imageMat1);
     imageMat1.release();
     imageMat1.dispose();
-    List<double> inputModel1 = await compute(softmax, (outputModel1 as List<double>));
-    print("Model1 Output: $inputModel1");
+    resultModel1 = await compute(softmax, (outputModel1 as List<double>));
+    print("Model1 Output: $resultModel1");
 
-    List<dynamic> outputModel2 =
-        await FaceEmbedding1.instance.getDataFromModel2(/*bitmapImage1,*/ imageMat2);
+    outputModel2 = await FaceEmbedding1.instance.getDataFromModel2(/*bitmapImage1,*/ imageMat2);
     imageMat2.release();
     imageMat2.dispose();
-    List<double> inputModel2 = await compute(softmax, (outputModel2 as List<double>));
-    print("Model2 Output: $inputModel2");
+    resultModel2 = await compute(softmax, (outputModel2 as List<double>));
+    print("Model2 Output: $resultModel2");
 
-    final prediction = List<double>.filled(3, 0.0);
+    prediction = List<double>.filled(3, 0.0);
     for (int i = 0; i < prediction.length; i++) {
-      prediction[i] += inputModel1[i];
-      prediction[i] += inputModel2[i];
+      prediction[i] += resultModel1[i];
+      prediction[i] += resultModel2[i];
     }
 
     print("Prediction: $prediction");
@@ -599,17 +612,23 @@ class _CameraScreen7State extends ConsumerState<CameraScreen7> {
     // Manual cleanup (recommended for memory management)
     // croppedImg.release(); // Uncomment if needed
     croppedImg.release();
+    croppedImg.dispose();
 
     return dstImg;
   }
 
   Future<cv.Mat> computeCropM(ComputeCropMDataInput data) async {
     cv.Mat croppedImg = cv.Mat.zeros(data.cropHeight, data.cropWidth, data.orgImg.type);
-    for (var y = 0; y < data.cropHeight; y++) {
-      for (var x = 0; x < data.cropWidth; x++) {
-        int srcX = x + data.newBox[0];
-        int srcY = y + data.newBox[1];
-        cv.Vec3b pixel = data.orgImg.at<cv.Vec3b>(srcY, srcX);
+    cv.Vec3b pixel;
+    int srcX;
+    int srcY;
+    int y = 0;
+    int x = 0;
+    for (y = 0; y < data.cropHeight; y++) {
+      for (x = 0; x < data.cropWidth; x++) {
+        srcX = x + data.newBox[0];
+        srcY = y + data.newBox[1];
+        pixel = data.orgImg.at<cv.Vec3b>(srcY, srcX);
         croppedImg.set(x, y, pixel);
         // croppedImg.at<cv.Vec3b>(y, x)/* = pixel*/;
       }
@@ -879,20 +898,29 @@ List<double> softmax(List<double> x) {
 Image.Image convertSinglePlaneNv21ToRgbCompute(ConvertNv21ToRgbaDataInput data) {
 // The UV data starts after the Y data
   final uvData = data.yData.sublist(data.width * data.height);
-  for (int y = 0; y < data.height; y++) {
-    for (int x = 0; x < data.width; x++) {
+  int y = 0;
+  int x = 0;
+  int yValue;
+  int uvIndex;
+  int vValue;
+  int uValue;
+  double r;
+  double g;
+  double b;
+  for (y = 0; y < data.height; y++) {
+    for (x = 0; x < data.width; x++) {
 // Get Y value
-      final yValue = data.yData[y * data.width + x];
+      yValue = data.yData[y * data.width + x];
 
 // Get U and V values (interleaved in NV21)
-      final uvIndex = (y ~/ 2) * (data.width ~/ 2) + (x ~/ 2);
-      final vValue = uvData[uvIndex * 2];
-      final uValue = uvData[uvIndex * 2 + 1];
+      uvIndex = (y ~/ 2) * (data.width ~/ 2) + (x ~/ 2);
+      vValue = uvData[uvIndex * 2];
+      uValue = uvData[uvIndex * 2 + 1];
 
 // Convert YUV to RGB
-      final r = yValue + 1.402 * (vValue - 128);
-      final g = yValue - 0.344136 * (uValue - 128) - 0.714136 * (vValue - 128);
-      final b = yValue + 1.772 * (uValue - 128);
+      r = yValue + 1.402 * (vValue - 128);
+      g = yValue - 0.344136 * (uValue - 128) - 0.714136 * (vValue - 128);
+      b = yValue + 1.772 * (uValue - 128);
 
 // Set the pixel in the RGB image
       data.rgbImage.setPixelRgba(
