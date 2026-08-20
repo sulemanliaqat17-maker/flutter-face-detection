@@ -56,6 +56,16 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
   Uint8List? image = null;
   Uint8List? image1 = null;
 
+  // Distance guidance state
+  String distanceMessage = "";
+  Color distanceColor = Colors.red;
+
+  // Face-size (distance) thresholds as a fraction of the full frame area.
+  // Tune these using the debug print in _processImage.
+  static const double _minFaceAreaRatio = 0.10; // below => face too far
+  static const double _maxFaceAreaRatio = 0.15; // above => face too close
+  double spoofConfidence = 0.0;
+
   // Only the bounding box is used downstream, so contours/classification are
   // left off and fast mode is used to keep every camera frame's detection
   // pass cheap.
@@ -128,6 +138,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
     croppedImage = null;
     inputImage = null;
     face = null;
+    distanceMessage = "";
     super.dispose();
   }
 
@@ -138,6 +149,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
     image = ref.watch(imageMemoryProvider);
     image1 = ref.watch(imageMemory1Provider);
     size = MediaQuery.of(context).size;
+    spoofConfidence = ref.watch(spoofConfidenceProvider);
     return PopScope(
       canPop: true,
       onPopInvoked: (value) async {
@@ -156,44 +168,44 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
                 width: MediaQuery.of(context).size.width,
                 child: Column(
                   children: [
-                    Container(
-                      color: Colors.white,
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("Fake: ${ref.watch(fakeCountProvider)}"),
-                          Text("Real: ${ref.watch(realCountProvider)}"),
-                        ],
-                      ),
-                    ),
+                    // Container(
+                    //   color: Colors.white,
+                    //   padding:
+                    //       EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    //   child: Row(
+                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //     children: [
+                    //       Text("Fake: ${ref.watch(fakeCountProvider)}"),
+                    //       Text("Real: ${ref.watch(realCountProvider)}"),
+                    //     ],
+                    //   ),
+                    // ),
                     SizedBox(
-                      height: 20.h,
+                      height: 100.h,
                     ),
                     Stack(
                       children: [
                         Column(
                           mainAxisAlignment: MainAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 250,
-                              height: 250,
+                            /*Container(
+                              width: 250.w,
+                              height: 250.h,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.purple, width: 5),
+                                border: Border.all(
+                                    color: Colors.purple, width: 5.w),
                               ),
                               child: ClipOval(
                                 child: FittedBox(
                                   fit: BoxFit.cover,
                                   child: SizedBox(
                                     width: aspectRatio >= 1
-                                        ? 190 * aspectRatio
-                                        : 190,
+                                        ? 190.w * aspectRatio
+                                        : 190.w,
                                     height: aspectRatio >= 1
-                                        ? 340
-                                        : 340 / aspectRatio,
+                                        ? 340.h
+                                        : 340.h / aspectRatio,
                                     child: Stack(
                                       alignment: Alignment.center,
                                       children: [
@@ -233,38 +245,135 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
                                   ),
                                 ),
                               ),
+                            ),*/
+                            Container(
+                              width: 250.w,
+                              height: 250
+                                  .w, // same unit on both axes => a real circle on every device
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: Colors.purple, width: 5.w),
+                              ),
+                              child: ClipOval(
+                                child: FittedBox(
+                                  fit: BoxFit.cover,
+                                  child: SizedBox(
+                                    // Match the CameraPreview's true portrait aspect ratio so it fills
+                                    // this box with no letterboxing. FittedBox(cover) then scales it to
+                                    // fill the circle identically on all devices.
+                                    width: 250.w,
+                                    height: 250.w * aspectRatio,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        CameraPreview(_controller!),
+                                        Positioned(
+                                          child: Visibility(
+                                            visible: !countdownHide,
+                                            child: Countdown(
+                                              controller: _countdownController,
+                                              seconds: 4,
+                                              build: (_, double time) => Text(
+                                                (time.toInt() == 0)
+                                                    ? "Capturing..."
+                                                    : time.toInt().toString(),
+                                                style: TextStyle(
+                                                  fontSize: 40,
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
+                                              interval:
+                                                  Duration(milliseconds: 100),
+                                              onFinished: () async {
+                                                setState(() {
+                                                  countdownHide = true;
+                                                  isProcessing = false;
+                                                });
+                                                await _controller
+                                                    ?.startImageStream(
+                                                        startImageProcess);
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 12.h),
+                            Text(
+                              distanceMessage,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w600,
+                                color: distanceColor,
+                              ),
+                            ),
+                            SizedBox(height: 12.h),
+                            Text(
+                              "Live Attempts: $real",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            SizedBox(height: 12.h),
+                            Text(
+                              "Fake Attempts: $fake",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            SizedBox(height: 12.h),
+                            Text(
+                              "Spoof Confidence: $spoofConfidence",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
                             ),
                             SizedBox(
                               height: 30.h,
                             ),
-                            image != null
-                                ? Container(
-                                    height: 148.h,
-                                    width: 148.w,
-                                    decoration: BoxDecoration(
-                                      image: DecorationImage(
-                                        image: MemoryImage(image!),
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ),
-                                  )
-                                : FlutterLogo(
-                                    size: 100.sp,
-                                  ),
-                            image1 != null
-                                ? Container(
-                                    height: 148.h,
-                                    width: 148.w,
-                                    decoration: BoxDecoration(
-                                      image: DecorationImage(
-                                        image: MemoryImage(image1!),
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ),
-                                  )
-                                : FlutterLogo(
-                                    size: 100.sp,
-                                  ),
+                            // image != null
+                            //     ? Container(
+                            //         height: 148.h,
+                            //         width: 148.w,
+                            //         decoration: BoxDecoration(
+                            //           image: DecorationImage(
+                            //             image: MemoryImage(image!),
+                            //             fit: BoxFit.contain,
+                            //           ),
+                            //         ),
+                            //       )
+                            //     : FlutterLogo(
+                            //         size: 100.sp,
+                            //       ),
+                            // image1 != null
+                            //     ? Container(
+                            //         height: 148.h,
+                            //         width: 148.w,
+                            //         decoration: BoxDecoration(
+                            //           image: DecorationImage(
+                            //             image: MemoryImage(image1!),
+                            //             fit: BoxFit.contain,
+                            //           ),
+                            //         ),
+                            //       )
+                            //     : FlutterLogo(
+                            //         size: 100.sp,
+                            //       ),
                             // CameraPreview(_controller),
                             // LoadImageWidget(),
                           ],
@@ -384,6 +493,51 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
                         next.boundingBox.width * next.boundingBox.height
                     ? curr
                     : next);
+
+            // --- Face distance check ------------------------------------
+            // Bounding-box area vs full-frame area. Area is invariant to
+            // the 90/270 rotation ML Kit applies, so this stays correct
+            // in portrait.
+            final double faceArea =
+                face!.boundingBox.width * face!.boundingBox.height;
+            final double frameArea = (image.width * image.height).toDouble();
+            final double faceAreaRatio = faceArea / frameArea;
+            if (kDebugMode) print("Face area ratio: $faceAreaRatio");
+
+            if (faceAreaRatio < _minFaceAreaRatio) {
+              inputImage = null;
+              faces = null;
+              face = null;
+              if (mounted) {
+                setState(() {
+                  distanceMessage = "Move closer to the camera";
+                  distanceColor = Colors.orange;
+                  isProcessing = false;
+                });
+              }
+              return;
+            } else if (faceAreaRatio > _maxFaceAreaRatio) {
+              inputImage = null;
+              faces = null;
+              face = null;
+              if (mounted) {
+                setState(() {
+                  distanceMessage = "Move a little away from the camera";
+                  distanceColor = Colors.orange;
+                  isProcessing = false;
+                });
+              }
+              return;
+            } else if (distanceMessage != "Good distance, hold still") {
+              if (mounted) {
+                setState(() {
+                  distanceMessage = "Good distance, hold still";
+                  distanceColor = Colors.green;
+                });
+              }
+            }
+            // ------------------------------------------------------------
+
             fake = ref.read(fakeCountProvider);
             real = ref.read(realCountProvider);
             Map<String, dynamic>? data =
@@ -396,10 +550,12 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
             ref.read(realCountProvider.notifier).state =
                 isFake! ? real : (real + 1);
 
-            if (iteration == 100) {
-              if (ref.read(fakeCountProvider.notifier).state > 2) {
+            if (ref.read(fakeCountProvider) == 10 ||
+                ref.read(realCountProvider) == 10) {
+              if (ref.read(fakeCountProvider.notifier).state > 10) {
                 ref.refresh(fakeCountProvider);
                 ref.refresh(realCountProvider);
+                ref.refresh(spoofConfidenceProvider);
                 // Fluttertoast.showToast(
                 //     msg:
                 //         "Kindly ensure that the facial registration of this person is bright and clear.");
@@ -410,6 +566,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
                 if (kDebugMode) print("Face Embedding: $faceEmbedding");
                 ref.refresh(fakeCountProvider);
                 ref.refresh(realCountProvider);
+                ref.refresh(spoofConfidenceProvider);
                 // _faceEmbedding.disposeModels();
                 FaceData? recognizedFace =
                     await _recognizeFace(faceEmbedding!, ref);
@@ -607,6 +764,9 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
 
       bool isReal = (label == 1);
       double score = prediction![label] / 2;
+      if (isReal) {
+        ref.read(spoofConfidenceProvider.notifier).state = score;
+      }
 
       bool isFake = isReal == false || (isReal == true && score <= 0.7);
 

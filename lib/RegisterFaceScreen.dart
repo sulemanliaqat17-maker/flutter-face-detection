@@ -35,7 +35,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
   double _pitch = 0;
   List<CameraDescription> cameraList = [];
   List<Uint8List?> capturedImages = List.generate(5, (value) => null);
-  final CountdownController _countdownController = CountdownController(autoStart: true);
+  final CountdownController _countdownController =
+      CountdownController(autoStart: true);
   bool countdownHide = true;
   List<double> currentFaceEmbedding = [];
 
@@ -79,7 +80,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
   Future<void> _initCamera() async {
     cameraList = await availableCameras();
     _controller = CameraController(cameraList[1], ResolutionPreset.low,
-        enableAudio: false, imageFormatGroup: ImageFormatGroup.nv21); // use front camera
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.nv21); // use front camera
     await _controller!.initialize();
     double? zoomLevelMax = await _controller?.getMaxZoomLevel();
     print(zoomLevelMax);
@@ -127,7 +129,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
                       const SizedBox(height: 8),
                       Text(
                         _angleInfo,
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 16),
                       ),
                     ],
                   ),
@@ -146,7 +149,10 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
           const SizedBox(width: 10),
           Text(
             "Facial Attendance",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.deepPurple),
           ),
         ],
       ),
@@ -156,7 +162,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
   Widget _buildReferencePose() {
     return Column(
       children: [
-        Text("Look at your face in the camera and move it the same way as shown in the reference"),
+        Text(
+            "Look at your face in the camera and move it the same way as shown in the reference"),
         Container(
           margin: const EdgeInsets.only(top: 10),
           padding: const EdgeInsets.all(16),
@@ -178,7 +185,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
                                       : "Straight",
                   style: TextStyle(color: Colors.white)),
               const SizedBox(height: 10),
-              Image.asset(displayImage, height: 80), // use your reference image here
+              Image.asset(displayImage,
+                  height: 80), // use your reference image here
             ],
           ),
         ),
@@ -190,8 +198,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
     final size = MediaQuery.of(context).size;
     final aspectRatio = _controller!.value.aspectRatio;
     return Container(
-      width: 250,
-      height: 250,
+      width: 250.w,
+      height: 250.h,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: Colors.purple, width: 5),
@@ -200,8 +208,10 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
         child: FittedBox(
           fit: BoxFit.cover,
           child: SizedBox(
-            width: aspectRatio >= 1 ? 200 * aspectRatio : 200,
-            height: aspectRatio >= 1 ? 340 : 340 / aspectRatio,
+            // width: aspectRatio >= 1 ? 200.w * aspectRatio : 200.w,
+            // height: aspectRatio >= 1 ? 340.h : 340.h / aspectRatio,
+            width: 250.w,
+            height: 250.w * aspectRatio,
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -222,7 +232,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
                       interval: Duration(milliseconds: 100),
                       onFinished: () async {
                         // Retake or capture logic
-                        await _controller?.startImageStream(_processCameraImage);
+                        await _controller
+                            ?.startImageStream(_processCameraImage);
                         setState(() {
                           countdownHide = true;
                         });
@@ -297,7 +308,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
         setState(() {
           _currentFace = faces.first;
         });
-        await _updateAngleValues(face: faces.first, inputImage: inputImage, cameraImage: image);
+        await _updateAngleValues(
+            face: faces.first, inputImage: inputImage, cameraImage: image);
       } else {
         setState(() {
           _currentFace = null;
@@ -313,11 +325,12 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
 
   InputImage? _inputImageFromCameraImage(CameraImage image) {
     try {
-      final rotation =
-          InputImageRotationValue.fromRawValue(_controller!.description.sensorOrientation);
+      final rotation = InputImageRotationValue.fromRawValue(
+          _controller!.description.sensorOrientation);
       if (rotation == null) return null;
 
-      final inputImageFormat = InputImageFormatValue.fromRawValue(image.format.raw);
+      final inputImageFormat =
+          InputImageFormatValue.fromRawValue(image.format.raw);
       if (inputImageFormat == null) return null;
 
       return InputImage.fromBytes(
@@ -370,10 +383,14 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
             ? -1
             : 0;
 
-    if (faceHorizontal == 0 && faceTilt == 0 && faceVertical == 0 && currentFacePose == -1) {
-      Img.Image croppedImage = await cropFace1(
-          Crop1DataInput(face: face, cameraImage: cameraImage, camera: cameraList[1]));
-      List<double> faceEmbedding = await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
+    if (faceHorizontal == 0 &&
+        faceTilt == 0 &&
+        faceVertical == 0 &&
+        currentFacePose == -1) {
+      Img.Image croppedImage = await cropFace1(Crop1DataInput(
+          face: face, cameraImage: cameraImage, camera: cameraList[1]));
+      List<double> faceEmbedding =
+          await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
       if (kDebugMode) print("Face Embedding: $faceEmbedding");
       currentFaceEmbedding = faceEmbedding;
       // _faceEmbedding.disposeModels();
@@ -390,33 +407,45 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
           currentFacePose = 0;
         });
       }
-    } else if (faceHorizontal == -1 && faceTilt == 0 && faceVertical == 0 && currentFacePose == 0) {
-      Img.Image croppedImage = await cropFace1(
-          Crop1DataInput(face: face, cameraImage: cameraImage, camera: cameraList[1]));
+    } else if (faceHorizontal == -1 &&
+        faceTilt == 0 &&
+        faceVertical == 0 &&
+        currentFacePose == 0) {
+      Img.Image croppedImage = await cropFace1(Crop1DataInput(
+          face: face, cameraImage: cameraImage, camera: cameraList[1]));
       setState(() {
         capturedImages[1] = (Img.encodePng(croppedImage)) as Uint8List;
         displayImage = 'assets/images/head_right.png';
         currentFacePose = 1;
       });
-    } else if (faceHorizontal == 1 && faceTilt == 0 && faceVertical == 0 && currentFacePose == 1) {
-      Img.Image croppedImage = await cropFace1(
-          Crop1DataInput(face: face, cameraImage: cameraImage, camera: cameraList[1]));
+    } else if (faceHorizontal == 1 &&
+        faceTilt == 0 &&
+        faceVertical == 0 &&
+        currentFacePose == 1) {
+      Img.Image croppedImage = await cropFace1(Crop1DataInput(
+          face: face, cameraImage: cameraImage, camera: cameraList[1]));
       setState(() {
         capturedImages[2] = (Img.encodePng(croppedImage)) as Uint8List;
         displayImage = 'assets/images/head_up.png';
         currentFacePose = 2;
       });
-    } else if (faceHorizontal == 0 && faceTilt == 0 && faceVertical == 1 && currentFacePose == 2) {
-      Img.Image croppedImage = await cropFace1(
-          Crop1DataInput(face: face, cameraImage: cameraImage, camera: cameraList[1]));
+    } else if (faceHorizontal == 0 &&
+        faceTilt == 0 &&
+        faceVertical == 1 &&
+        currentFacePose == 2) {
+      Img.Image croppedImage = await cropFace1(Crop1DataInput(
+          face: face, cameraImage: cameraImage, camera: cameraList[1]));
       setState(() {
         capturedImages[3] = (Img.encodePng(croppedImage)) as Uint8List;
         displayImage = 'assets/images/head_down.png';
         currentFacePose = 3;
       });
-    } else if (faceHorizontal == 0 && faceTilt == 0 && faceVertical == -1 && currentFacePose == 3) {
-      Img.Image croppedImage = await cropFace1(
-          Crop1DataInput(face: face, cameraImage: cameraImage, camera: cameraList[1]));
+    } else if (faceHorizontal == 0 &&
+        faceTilt == 0 &&
+        faceVertical == -1 &&
+        currentFacePose == 3) {
+      Img.Image croppedImage = await cropFace1(Crop1DataInput(
+          face: face, cameraImage: cameraImage, camera: cameraList[1]));
       setState(() {
         capturedImages[4] = (Img.encodePng(croppedImage)) as Uint8List;
         displayImage = 'assets/images/head_straight.png';
@@ -476,10 +505,12 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
       // Convert YUV to RGB
       img = _convertYuv420ToRgb(data.cameraImage);
     } else if (data.cameraImage.format.group == ImageFormatGroup.nv21) {
-      final orientation = WidgetsBinding.instance.window.physicalSize.aspectRatio > 1
-          ? DeviceOrientation.landscapeLeft
-          : DeviceOrientation.portraitUp;
-      img = await convertSinglePlaneNv21ToRgb(data.cameraImage, data.camera, orientation);
+      final orientation =
+          WidgetsBinding.instance.window.physicalSize.aspectRatio > 1
+              ? DeviceOrientation.landscapeLeft
+              : DeviceOrientation.portraitUp;
+      img = await convertSinglePlaneNv21ToRgb(
+          data.cameraImage, data.camera, orientation);
     } else if (data.cameraImage.format.group == ImageFormatGroup.bgra8888) {
       // Convert BGRA to Image
       img = Img.Image.fromBytes(
@@ -489,7 +520,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
         format: Img.Format.bgra,
       );
     } else {
-      throw Exception('Unsupported image format: ${data.cameraImage.format.group}');
+      throw Exception(
+          'Unsupported image format: ${data.cameraImage.format.group}');
     }
 
     // Get face bounding box
@@ -531,12 +563,13 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
 
         // Convert YUV to RGB
         final r = yValue + 1.402 * (vValue - 128);
-        final g = yValue - 0.344136 * (uValue - 128) - 0.714136 * (vValue - 128);
+        final g =
+            yValue - 0.344136 * (uValue - 128) - 0.714136 * (vValue - 128);
         final b = yValue + 1.772 * (uValue - 128);
 
         // Set the pixel in the Image object
-        rgbImage.setPixelRgba(
-            x, y, r.clamp(0, 255).toInt(), g.clamp(0, 255).toInt(), b.clamp(0, 255).toInt());
+        rgbImage.setPixelRgba(x, y, r.clamp(0, 255).toInt(),
+            g.clamp(0, 255).toInt(), b.clamp(0, 255).toInt());
       }
     }
 
@@ -550,10 +583,12 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
   ) async {
     // Ensure the image has exactly 1 plane
     if (image.planes.length != 1) {
-      throw Exception('Expected 1 plane for single-plane NV21, but found ${image.planes.length}');
+      throw Exception(
+          'Expected 1 plane for single-plane NV21, but found ${image.planes.length}');
     }
 
-    final plane = image.planes[0]; // Single plane containing Y and interleaved UV data
+    final plane =
+        image.planes[0]; // Single plane containing Y and interleaved UV data
     final width = image.width;
     final height = image.height;
 
@@ -563,8 +598,10 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
     // The Y data occupies the first part of the plane
     final yData = plane.bytes;
 
-    rgbImage = await compute(convertSinglePlaneNv21ToRgbCompute,
-        ConvertNv21ToRgbaDataInput(height: height, width: width, yData: yData, rgbImage: rgbImage));
+    rgbImage = await compute(
+        convertSinglePlaneNv21ToRgbCompute,
+        ConvertNv21ToRgbaDataInput(
+            height: height, width: width, yData: yData, rgbImage: rgbImage));
 
     // Calculate the rotation based on sensor orientation, device orientation, and lens direction
     final rotation = _calculateRotation(camera, deviceOrientation);
@@ -612,7 +649,8 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
       rotationCompensation = (sensorOrientation + rotationCompensation) % 360;
     } else {
       // Back-facing camera
-      rotationCompensation = (sensorOrientation - rotationCompensation + 360) % 360;
+      rotationCompensation =
+          (sensorOrientation - rotationCompensation + 360) % 360;
     }
 
     // Map rotation compensation to InputImageRotation
@@ -622,10 +660,12 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
 
   Future<FaceData?> _recognizeFace(List<double> faceData, WidgetRef ref) async {
     double threshold = 0.7;
-    final allFaces = await ref.read(databaseProvider).faceEmbeddingsDao.getAllFaces();
+    final allFaces =
+        await ref.read(databaseProvider).faceEmbeddingsDao.getAllFaces();
     if (allFaces.length != 0) {
       for (final storedFace in allFaces) {
-        double similarity = cosineSimilarity(faceData, Utils.parseEmbedding(storedFace.embedding!));
+        double similarity = cosineSimilarity(
+            faceData, Utils.parseEmbedding(storedFace.embedding!));
         if (similarity > threshold) {
           return storedFace;
         }

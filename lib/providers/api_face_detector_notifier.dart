@@ -20,11 +20,13 @@ final realCountProvider = StateProvider<int>((ref) => 0);
 final fakeCountProvider = StateProvider<int>((ref) => 0);
 final isProcessingProvider = StateProvider<bool>((ref) => false);
 final iterationProvider = StateProvider<int>((ref) => 0);
+final spoofConfidenceProvider = StateProvider<double>((ref) => 0.0);
 
 class ApiFaceDetectorNotifier extends StateNotifier<ApiStatesModel> {
   final AutoDisposeStateNotifierProviderRef _ref;
 
-  ApiFaceDetectorNotifier(this._ref) : super(ApiStatesModel(States.IDLE, "", null));
+  ApiFaceDetectorNotifier(this._ref)
+      : super(ApiStatesModel(States.IDLE, "", null));
 
   /*void isLoading(String loadingMessage) {
     state = ApiStatesModel(States.LOADING, loadingMessage, null);
@@ -75,7 +77,10 @@ class ApiFaceDetectorNotifier extends StateNotifier<ApiStatesModel> {
   // }
 
   Future<void> saveEmbeddings(String name, List<double> embedding) async {
-    await _ref.read(databaseProvider).faceEmbeddingsDao.insertFace(name, embedding);
+    await _ref
+        .read(databaseProvider)
+        .faceEmbeddingsDao
+        .insertFace(name, embedding);
   }
 
   Future<List<FaceData>> getAllFaces() async {
