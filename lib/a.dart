@@ -65,6 +65,8 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
   static const double _minFaceAreaRatio = 0.10; // below => face too far
   static const double _maxFaceAreaRatio = 0.15; // above => face too close
   double spoofConfidence = 0.0;
+  int _selectedCameraIndex = 0; // set to the front camera in initState
+  bool _isSwitchingCamera = false;
 
   // Only the bounding box is used downstream, so contours/classification are
   // left off and fast mode is used to keep every camera frame's detection
@@ -83,6 +85,10 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
   @override
   void initState() {
     super.initState();
+    // Default to the front camera (preserves the original cameras[1] behaviour).
+    _selectedCameraIndex = widget.cameras
+        .indexWhere((c) => c.lensDirection == CameraLensDirection.front);
+    if (_selectedCameraIndex == -1) _selectedCameraIndex = 0;
     _initializeCamera();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       setState(() {
@@ -95,7 +101,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
 
   Future<void> _initializeCamera() async {
     _controller = CameraController(
-      widget.cameras[1],
+      widget.cameras[_selectedCameraIndex],
       ResolutionPreset.medium,
       enableAudio: false,
       imageFormatGroup: Platform.isAndroid
@@ -139,6 +145,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
     inputImage = null;
     face = null;
     distanceMessage = "";
+    _isSwitchingCamera = false;
     super.dispose();
   }
 
@@ -162,6 +169,11 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
         body: FutureBuilder<void>(
           future: _initializeControllerFuture,
           builder: (context, snapshot) {
+            if (_isSwitchingCamera ||
+                _controller == null ||
+                !(_controller?.value.isInitialized ?? false)) {
+              return Center(child: CircularProgressIndicator());
+            }
             if (snapshot.connectionState == ConnectionState.done) {
               return Container(
                 height: MediaQuery.of(context).size.height,
@@ -304,6 +316,13 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
                               ),
                             ),
                             SizedBox(height: 12.h),
+                            ElevatedButton.icon(
+                              onPressed:
+                                  _isSwitchingCamera ? null : _switchCamera,
+                              icon: Icon(Icons.cameraswitch),
+                              label: Text("Switch Camera"),
+                            ),
+                            SizedBox(height: 12.h),
                             Text(
                               distanceMessage,
                               textAlign: TextAlign.center,
@@ -398,11 +417,75 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
         setState(() {
           isProcessing = true;
         });
-        await _processImage(image, widget.cameras[1]);
+        // await _processImage(image, widget.cameras[1]);
+        await _processImage(image, widget.cameras[_selectedCameraIndex]);
       }
     } else {
       print("Not Allocated");
     }
+  }
+
+  Future<void> _switchCamera() async {
+    // Need at least two cameras and no switch already in progress.
+    if (widget.cameras.length < 2 || _isSwitchingCamera) return;
+
+    // Work out the next camera: toggle between front and back.
+    final currentLens = widget.cameras[_selectedCameraIndex].lensDirection;
+    int nextIndex =
+        widget.cameras.indexWhere((c) => c.lensDirection != currentLens);
+    if (nextIndex == -1) {
+      // Fallback: cycle to the next camera in the list.
+      nextIndex = (_selectedCameraIndex + 1) % widget.cameras.length;
+    }
+
+    // 1. Stop prediction: stop the running image stream.
+    try {
+      if (_controller != null && _controller!.value.isStreamingImages) {
+        await _controller!.stopImageStream();
+      }
+    } catch (_) {}
+
+    // Show the spinner while tearing down/rebuilding, so we never paint a
+    // preview on a disposed controller.
+    setState(() {
+      _isSwitchingCamera = true;
+      countdownHide = true;
+      isProcessing = false;
+    });
+
+    // 2. Reset all prediction state so the new camera starts from scratch.
+    fake = 0;
+    real = 0;
+    iteration = 0;
+    distanceMessage = "";
+    distanceColor = Colors.red;
+    ref.refresh(fakeCountProvider);
+    ref.refresh(realCountProvider);
+    ref.refresh(spoofConfidenceProvider);
+
+    // 3. Dispose the old controller and switch to the new camera.
+    await _controller?.dispose();
+    _controller = null;
+    _selectedCameraIndex = nextIndex;
+
+    // 4. Re-initialize the new camera (reassigns _initializeControllerFuture).
+    await _initializeCamera();
+    if (!mounted) return;
+
+    // 5. Reveal the preview again.
+    setState(() {
+      _isSwitchingCamera = false;
+    });
+
+    // 6. Restart the 4-3-2-1 countdown (same pattern as initState). When it
+    //    finishes, onFinished starts the image stream on the new camera.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        countdownHide = false;
+      });
+      _countdownController.start();
+    });
   }
 
   InputImage? _inputImageFromCameraImage(
