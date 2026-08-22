@@ -42,12 +42,13 @@ dependencies:
   #  camera: ^0.11.0+2
   camera: ^0.10.6
   #  animated_face_detection: ^0.0.3
-  tflite_flutter: ^0.11.0
+  tflite_flutter:
+    path: ./tflite_flutter
 #    path: ./flutter-tflite
   #  image: ^4.4.0
   image: 3.1.0
-  opencv_dart: ^1.0.0
-  fluttertoast: ^8.2.6
+  opencv_dart: ^2.2.2
+  fluttertoast: ^10.0.0
   drift: ^2.19.1+1
   sqlite3_flutter_libs: ^0.5.24
   path_provider: ^2.1.4
@@ -64,6 +65,7 @@ dependency_overrides:
   file_picker: 8.0.6
   camera: ^0.10.6
   image: ^3.1.0
+  web: ^1.0.0
 
 dev_dependencies:
   flutter_test:
