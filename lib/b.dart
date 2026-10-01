@@ -308,6 +308,7 @@ class _CameraScreen8bState extends ConsumerState<CameraScreen8b> {
 
               if (recognizedFace != null) {
                 print('Recognized face: ${recognizedFace.name}');
+
                 Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
               } else {
                 Fluttertoast.showToast(

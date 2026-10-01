@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:face_detection_app/FaceEmbedding.dart';
 import 'package:face_detection_app/models/FaceData.dart';
 import 'package:face_detection_app/providers/api_face_detector_notifier.dart';
+import 'package:face_detection_app/utils/app_dialogs.dart';
 import 'package:face_detection_app/utils/utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -393,13 +394,15 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
           await FaceEmbedding1.instance.getFaceEmbedding(croppedImage);
       if (kDebugMode) print("Face Embedding: $faceEmbedding");
       currentFaceEmbedding = faceEmbedding;
+      currentCroppedImage = croppedImage;
       // _faceEmbedding.disposeModels();
-      final recognizedFace = await _recognizeFace(faceEmbedding, ref);
+      ({FaceData? faceData, double similarity})? recognizedFaceData = await _recognizeFace(faceEmbedding, ref);
       // await Future.delayed(Duration(seconds: 1));
-      if (recognizedFace != null) {
-        print('Recognized face: ${recognizedFace.name}');
+      if (recognizedFaceData != null) {
+        print('Recognized face: ${recognizedFaceData.faceData?.name??""}');
         Fluttertoast.showToast(msg: 'Face Already Registered');
-        Navigator.pop(context);
+        await AppDialogs.showImageMatchDialog(context, imageA: croppedImage!, imageB: Img.Image.fromBytes(recognizedFaceData.faceData!.faceWidth!, recognizedFaceData.faceData!.faceHeight!, recognizedFaceData.faceData!.faceBytes!), confidence: recognizedFaceData.similarity);
+        Navigator.popUntil(context, (route)=>route.isFirst);
       } else {
         setState(() {
           capturedImages[0] = (Img.encodePng(croppedImage)) as Uint8List;
@@ -452,10 +455,11 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
         currentFacePose = 4;
       });
 
+      // croppedImage.;
       await ref
           .read(databaseProvider)
           .faceEmbeddingsDao
-          .insertFace(widget.name, currentFaceEmbedding);
+          .insertFace(widget.name, currentFaceEmbedding, currentCroppedImage.height,currentCroppedImage.width,currentCroppedImage.getBytes());
       Fluttertoast.showToast(msg: "Registered Face");
       Navigator.pop(context);
     } else {
@@ -658,7 +662,7 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
         InputImageRotation.rotation0deg;
   }
 
-  Future<FaceData?> _recognizeFace(List<double> faceData, WidgetRef ref) async {
+  Future<({FaceData? faceData, double similarity})?> _recognizeFace(List<double> faceData, WidgetRef ref) async {
     double threshold = 0.7;
     final allFaces =
         await ref.read(databaseProvider).faceEmbeddingsDao.getAllFaces();
@@ -667,7 +671,7 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
         double similarity = cosineSimilarity(
             faceData, Utils.parseEmbedding(storedFace.embedding!));
         if (similarity > threshold) {
-          return storedFace;
+          return (faceData: storedFace, similarity: similarity);;
         }
       }
       return null;

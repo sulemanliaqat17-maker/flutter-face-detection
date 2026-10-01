@@ -127,31 +127,31 @@ class _HomeViewState extends ConsumerState<HomeView> {
             SizedBox(
               height: 20.h,
             ),
-            ElevatedButton(
-              onPressed: () async {
-                ref.refresh(fakeCountProvider);
-                ref.refresh(realCountProvider);
-                final cameras = await availableCameras();
-                // await FaceEmbedding1.instance.loadModel();
-                await FaceEmbeddingMat.instance.loadModel();
-                await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => CameraScreen8b(
-                              cameras: cameras,
-                              name: nameController.text,
-                            )));
-                // await FaceEmbedding1.instance.dispose();
-                await FaceEmbeddingMat.instance.dispose();
-                /*Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => FaceAngleDetectionScreen(
-                                cameras: cameras,
-                              )));*/
-              },
-              child: Text("FaceDetect Mat"),
-            ),
+            // ElevatedButton(
+            //   onPressed: () async {
+            //     ref.refresh(fakeCountProvider);
+            //     ref.refresh(realCountProvider);
+            //     final cameras = await availableCameras();
+            //     // await FaceEmbedding1.instance.loadModel();
+            //     await FaceEmbeddingMat.instance.loadModel();
+            //     await Navigator.push(
+            //         context,
+            //         MaterialPageRoute(
+            //             builder: (context) => CameraScreen8b(
+            //                   cameras: cameras,
+            //                   name: nameController.text,
+            //                 )));
+            //     // await FaceEmbedding1.instance.dispose();
+            //     await FaceEmbeddingMat.instance.dispose();
+            //     /*Navigator.push(
+            //           context,
+            //           MaterialPageRoute(
+            //               builder: (context) => FaceAngleDetectionScreen(
+            //                     cameras: cameras,
+            //                   )));*/
+            //   },
+            //   child: Text("FaceDetect Mat"),
+            // ),
             ElevatedButton(
               onPressed: () async {
                 ref.refresh(fakeCountProvider);

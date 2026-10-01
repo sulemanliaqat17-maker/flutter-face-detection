@@ -76,11 +76,11 @@ class ApiFaceDetectorNotifier extends StateNotifier<ApiStatesModel> {
   //   }
   // }
 
-  Future<void> saveEmbeddings(String name, List<double> embedding) async {
+  Future<void> saveEmbeddings(String name, List<double> embedding, int faceHeight, int faceWidth, Uint8List faceBytes) async {
     await _ref
         .read(databaseProvider)
         .faceEmbeddingsDao
-        .insertFace(name, embedding);
+        .insertFace(name, embedding, faceHeight, faceWidth, faceBytes);
   }
 
   Future<List<FaceData>> getAllFaces() async {

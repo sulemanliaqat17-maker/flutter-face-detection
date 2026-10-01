@@ -5,5 +5,8 @@ import 'package:face_detection_app/models/FaceData.dart';
 class FaceEmbeddingsTable extends Table {
   IntColumn get id => integer().autoIncrement()(); // Unique ID
   TextColumn get name => text()(); // Face name or label
+  IntColumn get faceHeight => integer()(); // Face name or label
+  IntColumn get faceWidth => integer()(); // Face name or label
+  BlobColumn get faceBytes => blob()(); // Face name or label
   TextColumn get embedding => text()(); // Embedding as a binary blob
 }

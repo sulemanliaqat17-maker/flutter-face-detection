@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:face_detection_app/FaceEmbedding.dart';
 import 'package:face_detection_app/models/FaceData.dart';
+import 'package:face_detection_app/utils/app_dialogs.dart';
 import 'package:face_detection_app/utils/utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -635,7 +636,8 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
 
             if (ref.read(fakeCountProvider) == 10 ||
                 ref.read(realCountProvider) == 10) {
-              if (ref.read(fakeCountProvider.notifier).state > 10) {
+              await _controller?.stopImageStream();
+              if (ref.read(fakeCountProvider.notifier).state >= 7) {
                 ref.refresh(fakeCountProvider);
                 ref.refresh(realCountProvider);
                 ref.refresh(spoofConfidenceProvider);
@@ -647,22 +649,25 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
                 faceEmbedding = await FaceEmbedding1.instance
                     .getFaceEmbedding(croppedImage!);
                 if (kDebugMode) print("Face Embedding: $faceEmbedding");
-                ref.refresh(fakeCountProvider);
-                ref.refresh(realCountProvider);
-                ref.refresh(spoofConfidenceProvider);
+
                 // _faceEmbedding.disposeModels();
-                FaceData? recognizedFace =
+                ({FaceData? faceData, double similarity})? recognizedFaceData =
                     await _recognizeFace(faceEmbedding!, ref);
                 // await Future.delayed(Duration(seconds: 1));
-                if (recognizedFace != null) {
-                  print('Recognized face: ${recognizedFace.name}');
-                  Fluttertoast.showToast(msg: 'Welcome ${recognizedFace.name}');
+                if (recognizedFaceData != null) {
+                  print('Recognized face: ${recognizedFaceData.faceData?.name??""}');
+                  Fluttertoast.showToast(msg: 'Welcome ${recognizedFaceData.faceData?.name}');
+                  await AppDialogs.showImageMatchDialog(context, imageA: croppedImage!, imageB: Image.Image.fromBytes(recognizedFaceData.faceData!.faceWidth!, recognizedFaceData.faceData!.faceHeight!, recognizedFaceData.faceData!.faceBytes!), confidence: recognizedFaceData.similarity);
                 } else {
                   Fluttertoast.showToast(
                       msg:
                           "Face Not Registered, Please register your face first");
+                  Navigator.pop(context);
                 }
-                recognizedFace = null;
+                ref.refresh(fakeCountProvider);
+                ref.refresh(realCountProvider);
+                ref.refresh(spoofConfidenceProvider);
+                recognizedFaceData = null;
                 isFake = null;
                 data = null;
                 inputImage = null;
@@ -676,7 +681,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
                 resultModel2 = null;
                 prediction = null;
               }
-              Navigator.pop(context);
+              Navigator.popUntil(context, (route)=> route.isFirst);
             } else {
               isFake = null;
               data = null;
@@ -724,7 +729,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
     }
   }
 
-  Future<FaceData?> _recognizeFace(List<double> faceData, WidgetRef ref) async {
+  Future<({FaceData? faceData, double similarity})?> _recognizeFace(List<double> faceData, WidgetRef ref) async {
     double threshold = 0.8;
     List<FaceData> allFaces =
         await ref.read(databaseProvider).faceEmbeddingsDao.getAllFaces();
@@ -734,7 +739,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
             faceData, Utils.parseEmbedding(storedFace.embedding!));
         print("Similarity: ${similarity}");
         if (similarity > threshold) {
-          return storedFace;
+          return (faceData: storedFace, similarity: similarity);
         }
       }
     } else {

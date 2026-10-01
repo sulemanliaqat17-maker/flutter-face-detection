@@ -20,10 +20,13 @@ class FaceEmbeddingsDao extends DatabaseAccessor<MyDatabase>
 
   // Insert face data
   @override
-  Future<int> insertFace(String name, List<double> embedding) async {
+  Future<int> insertFace(String name, List<double> embedding, int faceHeight, int faceWidth, Uint8List faceBytes) async {
     return into(faceEmbeddingsTable).insert(FaceEmbeddingsTableCompanion(
       name: Value(name),
       embedding: Value(Utils.embeddingToString(embedding)),
+      faceHeight: Value(faceHeight),
+      faceWidth: Value(faceWidth),
+      faceBytes: Value(faceBytes),
     ));
   }
 
@@ -47,7 +50,7 @@ class FaceEmbeddingsDao extends DatabaseAccessor<MyDatabase>
 }
 
 abstract class IFaceEmbeddingsTableTable {
-  Future<int> insertFace(String name, List<double> embedding);
+  Future<int> insertFace(String name, List<double> embedding, int faceHeight, int faceWidth, Uint8List faceBytes);
   Future<List<FaceData>> getAllFaces();
   Future<int> deleteFace(int id);
   Future<int> updateFace(int id, List<double> newEmbedding);
