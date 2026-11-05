@@ -49,9 +49,9 @@ class FaceEmbeddingMat {
   /// Dispose resources
   Future<void> dispose() async {
     await _lock.synchronized(() {
-      interpreter?.close();
-      interpreter1?.close();
-      interpreter2?.close();
+      interpreter.close();
+      interpreter1.close();
+      interpreter2.close();
       _isInitialized = false;
     });
   }

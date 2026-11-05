@@ -40,6 +40,7 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
       CountdownController(autoStart: true);
   bool countdownHide = true;
   List<double> currentFaceEmbedding = [];
+  Img.Image? currentCroppedImage;
 
   String displayImage = "assets/images/head_straight.png";
   List<String> facePoses = [
@@ -459,7 +460,7 @@ class _RegisterFaceScreenState extends ConsumerState<RegisterFaceScreen> {
       await ref
           .read(databaseProvider)
           .faceEmbeddingsDao
-          .insertFace(widget.name, currentFaceEmbedding, currentCroppedImage.height,currentCroppedImage.width,currentCroppedImage.getBytes());
+          .insertFace(widget.name, currentFaceEmbedding, currentCroppedImage!.height,currentCroppedImage!.width,currentCroppedImage!.getBytes());
       Fluttertoast.showToast(msg: "Registered Face");
       Navigator.pop(context);
     } else {

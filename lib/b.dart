@@ -289,7 +289,7 @@ class _CameraScreen8bState extends ConsumerState<CameraScreen8b> {
             ref.read(fakeCountProvider.notifier).state =
                 isFake! ? (fake + 1) : fake;
             ref.read(realCountProvider.notifier).state =
-                isFake! ? real : (real + 1);
+                isFake ? real : (real + 1);
 
             if (iteration == 5) {
               faceEmbedding = await FaceEmbeddingMat.instance

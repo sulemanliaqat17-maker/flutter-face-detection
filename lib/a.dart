@@ -632,7 +632,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
             ref.read(fakeCountProvider.notifier).state =
                 isFake! ? (fake + 1) : fake;
             ref.read(realCountProvider.notifier).state =
-                isFake! ? real : (real + 1);
+                isFake ? real : (real + 1);
 
             if (ref.read(fakeCountProvider) == 10 ||
                 ref.read(realCountProvider) == 10) {
@@ -745,6 +745,7 @@ class _CameraScreen7aState extends ConsumerState<CameraScreen7a> {
     } else {
       return null;
     }
+    return null;
   }
 
   static double cosineSimilarity(

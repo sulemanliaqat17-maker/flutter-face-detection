@@ -38,9 +38,9 @@ class FaceEmbedding {
   /// Dispose resources
   Future<void> dispose() async {
     await _lock.synchronized(() {
-      interpreter?.close();
-      interpreter1?.close();
-      interpreter2?.close();
+      interpreter.close();
+      interpreter1.close();
+      interpreter2.close();
       _isInitialized = false;
     });
   }
@@ -239,12 +239,12 @@ class FaceEmbedding1 {
   /// Dispose resources
   Future<void> dispose() async {
     await _lock.synchronized(() async {
-      await isolateInterpreter?.close();
-      await isolateInterpreter1?.close();
-      await isolateInterpreter2?.close();
-      interpreter?.close();
-      interpreter1?.close();
-      interpreter2?.close();
+      await isolateInterpreter.close();
+      await isolateInterpreter1.close();
+      await isolateInterpreter2.close();
+      interpreter.close();
+      interpreter1.close();
+      interpreter2.close();
       _isInitialized = false;
     });
   }
